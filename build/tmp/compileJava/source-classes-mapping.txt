@@ -1,0 +1,47 @@
+vita/types/TlsAllocReplacement.java
+ vita.types.TlsAllocReplacement
+vita/types/SceLibcParam_1xx.java
+ vita.types.SceLibcParam_1xx
+vita/types/SceLibcParam_2xx.java
+ vita.types.SceLibcParam_2xx
+vita/misc/NameUtil.java
+ vita.misc.NameUtil
+vita/types/SceModuleExports.java
+ vita.types.SceModuleExports
+ghidra/app/util/opinion/DefaultElfProgramBuilder.java
+ ghidra.app.util.opinion.DefaultElfProgramBuilder
+ ghidra.app.util.opinion.DefaultElfProgramBuilder$ExceptionalSupplier
+vita/types/GenericModuleImports.java
+ vita.types.GenericModuleImports
+vita/elf/VitaElfHeader.java
+ vita.elf.VitaElfHeader
+vita/types/SceModuleImports_1xx.java
+ vita.types.SceModuleImports_1xx
+vita/types/SceModuleImports_3xx.java
+ vita.types.SceModuleImports_3xx
+vita/types/SceModuleInfo.java
+ vita.types.SceModuleInfo
+vita/misc/NIDDatabase.java
+ vita.misc.NIDDatabase
+ vita.misc.NIDDatabase$DatabaseType
+ vita.misc.NIDDatabase$NidDatabaseLibrary
+ vita.misc.NIDDatabase$YamlNidDatabase
+ vita.misc.NIDDatabase$YamlNidDatabaseLibrary
+ vita.misc.NIDDatabase$YamlNidDatabaseModule
+vita/types/LibcxxAllocReplacement.java
+ vita.types.LibcxxAllocReplacement
+vita/types/SceProcessParam.java
+ vita.types.SceProcessParam
+vita/loader/VitaLoader.java
+ vita.loader.VitaLoader
+vita/types/LibcAllocReplacement.java
+ vita.types.LibcAllocReplacement
+vita/misc/ImportsManager.java
+ vita.misc.ImportsManager
+vita/misc/TypesManager.java
+ vita.misc.TypesManager
+vita/elf/VitaElfExtension.java
+ vita.elf.VitaElfExtension
+ vita.elf.VitaElfExtension$ProcessingContext
+vita/elf/VitaElfProgramBuilder.java
+ vita.elf.VitaElfProgramBuilder
