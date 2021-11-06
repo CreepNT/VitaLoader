@@ -89,7 +89,7 @@ public class SceProcessmgrProcFuncExport implements StructConverter {
 		
 		_ctx.api.clearListing(_selfAddress, _selfAddress.add(dt.getLength()));
 		_ctx.api.createData(_selfAddress, dt);
-		_ctx.api.createLabel(_selfAddress, _ctx.moduleName + "_" + namePart1 + namePart2 + "_funcTable", true);
+		_ctx.api.createLabel(_selfAddress, "SceProcessmgrProcFuncExportEntry_" + namePart1 + namePart2, true);
 	}
 	
 	public void process() {
