@@ -53,13 +53,16 @@ public class SceModuleExports implements StructConverter {
 	private static final long MODULE_INFO_NID 			= 0x6C2224BAL; //SceModuleInfo
 	private static final long MODULE_SDK_VERSION_NID 	= 0x936C8A78L; //uint
 	private static final long PROCESS_PARAM_NID 		= 0x70FBA1E7L; //SceProcessParam
-	private static final long PROCESSMGR_DESCRIPTOR_NID = 0x9318D9DDL; //0x14 bytes structure exported by SceProcessmgr
-	private static final long PROCESSMGR_VTABLE_NID		= 0x8CE938B1L; //Vtable exported by SceProcessmgr
+	private static final long PROCESSMGR_PROC_FUNC_EXPORT_DESCRIPTOR_NID = 0x9318D9DDL; //0x8 bytes structure that describes the size of array
+	private static final long PROCESSMGR_PROC_FUNC_EXPORT_ARRAY_NID = 0x8CE938B1L; //Array of pointers to structures about ___proc__XXX functions exported by SceProcessmgr
 	
 	private static final String NAMELESS_LIBRARY_NAME = "__VITALOADER_NAMELESS_LIBRARY_NAME__";
 	private ProcessingContext _ctx; //Processing context
 	private Address _selfAddress; 	//Address we're located at
 	private String _libraryName; 	//Name of the library those exports belong to
+	
+	private int _ProcessmgrProcFuncExportsArray_size = 0; //Number of entries in the array about ___proc__XXX functions
+	private Address _ProcessmgrProcFuncExportsArray_address = null; //address of the array
 	
 	/**
 	 * 
@@ -137,7 +140,7 @@ public class SceModuleExports implements StructConverter {
 	 */
 	public void process() throws Exception {
 		boolean isNamelessLib = this.isNamelessLibrary();
-		String prettyLibName = (isNamelessLib) ? _ctx.moduleName + "_library" : _libraryName;
+		String prettyLibName = (isNamelessLib) ? _ctx.moduleName + "_module" : _libraryName;
 				
 		//Create NID and entry tables
 		Address nidTableAddress = _ctx.textBlock.getStart().getNewAddress(nid_table);
@@ -162,7 +165,9 @@ public class SceModuleExports implements StructConverter {
 			prepareMonitorProgressBar(_ctx.monitor, "Resolving function exports from " + prettyLibName + "...", num_functions);
 			for (int i = 0; i < num_functions; i++, _ctx.monitor.incrementProgress(1)) {
 				long funcNid = Integer.toUnsignedLong(funcNidTable.get(i));
-				long funcEntry = Integer.toUnsignedLong(funcEntryTable.get(i));
+				//Clear LSB, because functions have to start at a 2-byte boundary (i.e. ignore Thumb bit)
+				long funcEntry = Integer.toUnsignedLong(funcEntryTable.get(i)) & ~1L;
+				
 				
 				processFunction(prettyLibName, isNamelessLib, funcNid, funcEntry);
 			}
@@ -235,7 +240,7 @@ public class SceModuleExports implements StructConverter {
 	private void processVariable(String libraryName, boolean isNamelessLib,
 			long variableNid, long variableAddress) throws Exception{
 		String variableName = libraryName + String.format("_%08X", variableNid);
-		Address varAddress = _ctx.textBlock.getStart().getNewAddress(variableAddress);
+		Address varAddress = _ctx.textStart.getNewAddress(variableAddress);
 		
 		if (isNamelessLib) {
 			//Before you come and say this is ugly or impractical and I should have used a Map:
@@ -251,12 +256,19 @@ public class SceModuleExports implements StructConverter {
 				_ctx.api.createLabel(varAddress, _ctx.moduleName + "_module_SDK_version", true, SourceType.ANALYSIS);
 			} else if (variableNid == MODULE_INFO_NID) {
 				//No processing needed, SceModuleInfo class already did (we're sure of that because it calls us)
-			} else if (variableNid == PROCESSMGR_DESCRIPTOR_NID) {
-				_ctx.api.createData(varAddress, TypeHelper.makeArray(TypeHelper.u32, 0x14/0x4));
-				_ctx.api.createLabel(varAddress, _ctx.moduleName + "_proc_descriptor_?", true, SourceType.ANALYSIS);
-			} else if (variableNid == PROCESSMGR_VTABLE_NID) {
-				_ctx.api.createData(varAddress, TypeHelper.makeArray(TypeHelper.PVOID, 1)); //TODO: add correct number of vfunc
-				_ctx.api.createLabel(varAddress, _ctx.moduleName + "_proc_vtable_?", true, SourceType.ANALYSIS);
+			} else if (variableNid == PROCESSMGR_PROC_FUNC_EXPORT_DESCRIPTOR_NID) {
+				System.out.println("Processing DESCRIPTOR");
+				
+				_ctx.api.createData(varAddress, TypeHelper.makeArray(TypeHelper.u32, 2));
+				_ctx.api.createLabel(varAddress, "SceProcessmgrProcFuncExportsInfo", true, SourceType.ANALYSIS);
+				
+				Address numFuncsAddr = varAddress.add(0x4);
+				BinaryReader br = TypeHelper.getByteArrayBackedBinaryReader(_ctx, numFuncsAddr, 0x4);
+				_ProcessmgrProcFuncExportsArray_size = (int)br.readNextUnsignedInt();
+				markupProcFuncExportsIfPossible();
+			} else if (variableNid == PROCESSMGR_PROC_FUNC_EXPORT_ARRAY_NID) {
+				_ProcessmgrProcFuncExportsArray_address = varAddress;
+				markupProcFuncExportsIfPossible();
 			} else {
 				_ctx.logger.appendMsg(String.format("Unknown nameless variable export NID 0x%08X", variableNid));
 			}
@@ -274,6 +286,30 @@ public class SceModuleExports implements StructConverter {
 /*
  * Gadgets
  */
+	private void markupProcFuncExportsIfPossible() throws Exception {
+		if (_ProcessmgrProcFuncExportsArray_size == 0 || _ProcessmgrProcFuncExportsArray_address == null) {
+			return;
+		}
+		
+		final Address arrAddr = _ProcessmgrProcFuncExportsArray_address;
+		final int arrSize = _ProcessmgrProcFuncExportsArray_size;
+		
+		_ctx.api.createData(arrAddr, TypeHelper.makeArray(new Pointer32DataType(SceProcessmgrProcFuncExport.getDataType()), arrSize));
+		_ctx.api.createLabel(arrAddr, "SceProcessmgrProcFuncExportsTable", true, SourceType.ANALYSIS);
+		
+		for (int i = 0; i < arrSize; i++) {
+			Address ptrAddr = arrAddr.add(i * 4);
+			BinaryReader ptrReader = TypeHelper.getByteArrayBackedBinaryReader(_ctx, ptrAddr, 4);
+			long ptr = ptrReader.readNextUnsignedInt();
+			
+			Address structAddr = _ctx.textStart.getNewAddress(ptr);
+			SceProcessmgrProcFuncExport table = new SceProcessmgrProcFuncExport(_ctx, structAddr);
+			table.apply();
+			table.process();
+		}
+		
+	}
+	
 	private static void prepareMonitorProgressBar(TaskMonitor monitor, String msg, long max) {
 		monitor.setShowProgressValue(false);
 		monitor.setMessage(msg);

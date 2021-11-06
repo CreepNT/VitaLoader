@@ -70,8 +70,8 @@ public class GenericModuleImports {
 			//Create NIDs and entry tables
 			Address funcNidTableAddr = _ctx.textBlock.getStart().getNewAddress(FuncNIDTable);
 			Address funcEntTableAddr = _ctx.textBlock.getStart().getNewAddress(FuncEntryTable);
-			_ctx.helper.createSymbol(funcNidTableAddr, _ctx.moduleName + "_" + LibraryName + "_function_imports_NID_table", true, false, null);
-			_ctx.helper.createSymbol(funcEntTableAddr, _ctx.moduleName + "_" + LibraryName + "_function_imports_entry_table", true, false, null);
+			_ctx.helper.createSymbol(funcNidTableAddr, LibraryName + "_function_imports_NID_table", true, false, null);
+			_ctx.helper.createSymbol(funcEntTableAddr, LibraryName + "_function_imports_entry_table", true, false, null);
 			_ctx.helper.createData(funcNidTableAddr, TypeHelper.makeArray(TypeHelper.u32, NumFunctions));
 			_ctx.helper.createData(funcEntTableAddr, TypeHelper.makeArray(Pointer32DataType.dataType, NumFunctions));
 
@@ -101,8 +101,8 @@ public class GenericModuleImports {
 			//Create NIDs and entry tables
 			Address varNidTableAddr = _ctx.textBlock.getStart().getNewAddress(VarNIDTable);
 			Address varEntTableAddr = _ctx.textBlock.getStart().getNewAddress(VarLocTable);
-			_ctx.helper.createSymbol(varNidTableAddr, _ctx.moduleName + "_" + LibraryName + "_variable_imports_NID_table", true, false, null);
-			_ctx.helper.createSymbol(varEntTableAddr, _ctx.moduleName + "_" + LibraryName + "_variable_imports_entry_table", true, false, null);
+			_ctx.helper.createSymbol(varNidTableAddr, LibraryName + "_variable_imports_NID_table", true, false, null);
+			_ctx.helper.createSymbol(varEntTableAddr, LibraryName + "_variable_imports_entry_table", true, false, null);
 			_ctx.helper.createData(varNidTableAddr, TypeHelper.makeArray(TypeHelper.u32, NumVariables));
 			_ctx.helper.createData(varEntTableAddr, TypeHelper.makeArray(Pointer32DataType.dataType, NumVariables));
 		

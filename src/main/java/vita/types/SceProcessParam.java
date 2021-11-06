@@ -87,13 +87,13 @@ public class SceProcessParam implements StructConverter {
 		_ctx.api.createLabel(_selfAddress, _ctx.moduleName + "_" + dt.getName(), true);
 		
 		
-		__markup_if_present(this.sceUserMainThreadName, "sceUserMainThreadName", StringDataType.dataType);
-		__markup_if_present(this.sceUserMainThreadPriority, "sceUserMainThreadPriority", TypeHelper.s32);
-		__markup_if_present(this.sceUserMainThreadStackSize, "sceUserMainThreadStackSize", TypeHelper.u32);
-		__markup_if_present(this.sceUserMainThreadAttribute, "sceUserMainThreadAttribute", TypeHelper.u32);
-		__markup_if_present(this.sceProcessName, "sceProcessName", StringDataType.dataType);
-		__markup_if_present(this.sceKernelPreloadModuleInhibit, "sceKernelPreloadModuleInhibit", TypeHelper.u32);
-		__markup_if_present(this.sceUserMainThreadCpuAffinityMask, "sceUserMainThreadCpuAffinityMask", TypeHelper.u32);
+		markup_string_if_present(this.sceUserMainThreadName, "sceUserMainThreadName");
+		markup_if_present(this.sceUserMainThreadPriority, "sceUserMainThreadPriority", TypeHelper.s32);
+		markup_if_present(this.sceUserMainThreadStackSize, "sceUserMainThreadStackSize", TypeHelper.u32);
+		markup_if_present(this.sceUserMainThreadAttribute, "sceUserMainThreadAttribute", TypeHelper.u32);
+		markup_string_if_present(this.sceProcessName, "sceProcessName");
+		markup_if_present(this.sceKernelPreloadModuleInhibit, "sceKernelPreloadModuleInhibit", TypeHelper.u32);
+		markup_if_present(this.sceUserMainThreadCpuAffinityMask, "sceUserMainThreadCpuAffinityMask", TypeHelper.u32);
 
 		if (this.__sce_libcparam != 0L) {
 			Address libcParamAddress = _ctx.textStart.getNewAddress(this.__sce_libcparam);
@@ -118,12 +118,20 @@ public class SceProcessParam implements StructConverter {
 		}
 	}
 	
-	private void __markup_if_present(long address, String name, DataType datatype) throws Exception {
+	private void markup_if_present(long address, String name, DataType datatype) throws Exception {
 		if (address != 0L) {
 			Address addr = _ctx.textStart.getNewAddress(address);
 			_ctx.api.clearListing(addr, addr.add(datatype.getLength()));
 			_ctx.api.createLabel(addr, name, true, SourceType.ANALYSIS);
 			_ctx.api.createData(addr, datatype);
+		}
+	}
+	
+	private void markup_string_if_present(long address, String name) throws Exception {
+		if (address != 0L) {
+			Address addr = _ctx.textStart.getNewAddress(address);
+			_ctx.api.createLabel(addr, name, true, SourceType.ANALYSIS);
+			_ctx.api.createAsciiString(addr);
 		}
 	}
 }
