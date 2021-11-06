@@ -59,7 +59,11 @@ public class VitaElfExtension extends ElfExtension {
 			this.dataBlock 	= getRWMemBlock(this.memory);
 			this.textBlock	= getExecutableMemBlock(this.memory);
 			this.textStart  = this.textBlock.getStart();
-			this.dataStart  = this.dataBlock.getStart();
+			if (this.dataBlock != null) {
+				this.dataStart  = this.dataBlock.getStart();
+			} else {
+				this.dataStart = this.textStart;
+			}
 			
 			this.typeDb = new TypeDatabase(this);
 			this.nidDb = new NIDDatabase(this);
