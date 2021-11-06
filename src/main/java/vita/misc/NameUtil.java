@@ -8,7 +8,7 @@ public final class NameUtil {
 	private Map<String, String> MODULE_NAME_TO_FILE_NAME_MAP;
 	private Map<String, String> LIBRARY_NAME_TO_MODULE_NAME_MAP;
 			
-	private static NameUtil INSTANCE = null;
+	private static NameUtil INSTANCE = new NameUtil();
 	
 	private NameUtil() {
 		MODULE_NAME_TO_FILE_NAME_MAP = new HashMap<>();
@@ -1053,22 +1053,15 @@ public final class NameUtil {
 			LIBRARY_NAME_TO_MODULE_NAME_MAP.put("SceShell", "SceShell");
 	}
 	
-	public static NameUtil get() {
-		if (INSTANCE == null) {
-			INSTANCE = new NameUtil();
-		}
-		return INSTANCE;
-	}
-
-	public String getModuleNameFromLibraryName(String libraryName) {
-		if (LIBRARY_NAME_TO_MODULE_NAME_MAP.containsKey(libraryName))
-			return LIBRARY_NAME_TO_MODULE_NAME_MAP.get(libraryName);
+	public static String getModuleNameFromLibraryName(String libraryName) {
+		if (INSTANCE.LIBRARY_NAME_TO_MODULE_NAME_MAP.containsKey(libraryName))
+			return INSTANCE.LIBRARY_NAME_TO_MODULE_NAME_MAP.get(libraryName);
 		return null;
 	}
 	
-	public String getFileNameFromModuleName(String moduleName) {
-		if (MODULE_NAME_TO_FILE_NAME_MAP.containsKey(moduleName))
-			return MODULE_NAME_TO_FILE_NAME_MAP.get(moduleName);
+	public static String getFileNameFromModuleName(String moduleName) {
+		if (INSTANCE.MODULE_NAME_TO_FILE_NAME_MAP.containsKey(moduleName))
+			return INSTANCE.MODULE_NAME_TO_FILE_NAME_MAP.get(moduleName);
 		return null;
 	}
 }

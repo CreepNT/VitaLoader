@@ -10,12 +10,17 @@ import ghidra.program.model.data.CategoryPath;
 import ghidra.app.util.bin.StructConverterUtil;
 import ghidra.program.model.data.Pointer32DataType;
 import ghidra.program.model.data.StructureDataType;
+import ghidra.program.model.listing.Function;
+import ghidra.program.model.listing.Function.FunctionUpdateType;
+import ghidra.program.model.listing.ParameterImpl;
+import ghidra.program.model.listing.Variable;
+import ghidra.program.model.symbol.SourceType;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.program.model.data.ParameterDefinition;
 import ghidra.program.model.data.ParameterDefinitionImpl;
 import ghidra.program.model.data.FunctionDefinitionDataType;
 
-import vita.misc.TypesManager;
+import vita.misc.TypeHelper;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
 public class LibcxxAllocReplacement implements StructConverter {
@@ -33,12 +38,14 @@ public class LibcxxAllocReplacement implements StructConverter {
 	public long user_delete_nothrow;
 	public long user_delete_array;
 	public long user_delete_array_nothrow;
+	private final ProcessingContext _ctx;
+	private final Address _selfAddress;
 	public static final int SIZE = 0x28;
 	public static final String NAME = "SceLibstdcxxAllocReplacement";
 	
-	private static CategoryPath LIBCXX_REPLACEMENT_CATPATH = new CategoryPath(TypesManager.SCE_TYPES_CATPATH, "LibcxxAllocReplacement");
+	private static CategoryPath LIBCXX_REPLACEMENT_CATPATH = new CategoryPath(TypeHelper.SCE_TYPES_CATPATH, "LibcxxAllocReplacement");
 	
-	public LibcxxAllocReplacement(BinaryReader reader) throws IOException {
+	public LibcxxAllocReplacement(ProcessingContext ctx, Address libcxxAllocReplaceAddress, BinaryReader reader) throws IOException {
 		size = reader.readNextUnsignedInt();
 		unk4 = reader.readNextUnsignedInt();
 		user_new = reader.readNextUnsignedInt();
@@ -49,6 +56,9 @@ public class LibcxxAllocReplacement implements StructConverter {
 		user_delete_nothrow = reader.readNextUnsignedInt();
 		user_delete_array = reader.readNextUnsignedInt();
 		user_delete_array_nothrow = reader.readNextUnsignedInt();
+		
+		_ctx = ctx;
+		_selfAddress = libcxxAllocReplaceAddress;
 	}
 	
 	@Override
@@ -57,11 +67,11 @@ public class LibcxxAllocReplacement implements StructConverter {
 	}
 
 	
-	public void apply(ProcessingContext ctx, Address libcAllocReplaceAddress, String moduleName) throws Exception {
+	public void apply() throws Exception {
 		//Local declarations for convenience
-		DataType size_t = TypesManager.size_t;
-		DataType pVoid = TypesManager.PVOID;
-		DataType uint = TypesManager.u32;
+		DataType size_t = TypeHelper.size_t;
+		DataType pVoid = TypeHelper.PVOID;
+		DataType uint = TypeHelper.u32;
 
 		//Create function signatures
 		FunctionDefinitionDataType F_user_new = fdef("user_new", pVoid, spdef("size", size_t));
@@ -74,7 +84,7 @@ public class LibcxxAllocReplacement implements StructConverter {
 		FunctionDefinitionDataType F_user_delete_array_nothrow = fdef("user_delete_array_nothrow", VOID, pdef(new String[]{"ptr", "std_nothrow_t_reference"}, new DataType[]{pVoid, pVoid}));
 		
 		//Create the structure itself
-		StructureDataType libcxx_alloc_replace_struct = TypesManager.createAndGetStructureDataType(LIBCXX_REPLACEMENT_CATPATH, NAME);
+		StructureDataType libcxx_alloc_replace_struct = TypeHelper.createAndGetStructureDataType(LIBCXX_REPLACEMENT_CATPATH, NAME);
 		libcxx_alloc_replace_struct.add(size_t, "size", "Size of this structure");
 		libcxx_alloc_replace_struct.add(uint, "unk4", null);
 		libcxx_alloc_replace_struct.add(new Pointer32DataType(F_user_new), "new", "operator new(std::size_t) throw(std::bad_alloc) replacement");
@@ -90,9 +100,19 @@ public class LibcxxAllocReplacement implements StructConverter {
 			System.err.println("Unexpected " + NAME + " data type size (" + libcxx_alloc_replace_struct.getLength() + " != expected " + SIZE + " !)");
 		
 		//Apply structure
-		ctx.api.clearListing(libcAllocReplaceAddress);
-		ctx.api.createData(libcAllocReplaceAddress, libcxx_alloc_replace_struct);
-		ctx.api.createLabel(libcAllocReplaceAddress, moduleName + "_" + libcxx_alloc_replace_struct.getName(), true);
+		_ctx.api.clearListing(_selfAddress);
+		_ctx.api.createData(_selfAddress, libcxx_alloc_replace_struct);
+		_ctx.api.createLabel(_selfAddress, _ctx.moduleName + "_" + libcxx_alloc_replace_struct.getName(), true);
+		
+		//Markup functions
+		__markup_if_present(this.user_new, "user_new", F_user_new);
+		__markup_if_present(this.user_new_nothrow, "user_new_nothrow", F_user_new);
+		__markup_if_present(this.user_new_array, "user_new_array", F_user_new_array);
+		__markup_if_present(this.user_new_array_nothrow, "user_new_array_nothrow", F_user_new_array_nothrow);
+		__markup_if_present(this.user_delete, "user_delete", F_user_delete);
+		__markup_if_present(this.user_delete_nothrow, "user_delete_nothrow", F_user_delete_nothrow);
+		__markup_if_present(this.user_delete_array, "user_delete_array", F_user_delete_array);
+		__markup_if_present(this.user_delete_array_nothrow, "user_delete_array_nothrow", F_user_delete_array_nothrow);
 	}
 	
 	//Macro-like to generate Single Parameter DEFinition array (1-element array)
@@ -122,4 +142,47 @@ public class LibcxxAllocReplacement implements StructConverter {
 		return r;
 	}
 
+	private void __markup_if_present(long address, String name, FunctionDefinitionDataType function) throws Exception {
+		if (address == 0L)
+			return;
+		
+		ParameterDefinition[] fArgs = function.getArguments();
+		Function f = _ctx.helper.createOneByteFunction(name, _ctx.textStart.getNewAddress(address), false);
+		f.setReturnType(function.getReturnType(), SourceType.ANALYSIS);
+		if (fArgs.length > 0) {
+			Variable[] vars = new Variable[fArgs.length];
+			for (int i = 0; i < fArgs.length; i++) {
+				vars[i] = new ParameterImpl(fArgs[i].getName(), fArgs[i].getDataType(), _ctx.program);
+			}
+			f.replaceParameters(FunctionUpdateType.DYNAMIC_STORAGE_ALL_PARAMS, true, SourceType.ANALYSIS, vars);
+		}
+	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

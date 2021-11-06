@@ -11,12 +11,17 @@ import ghidra.program.model.data.ArrayDataType;
 import ghidra.app.util.bin.StructConverterUtil;
 import ghidra.program.model.data.Pointer32DataType;
 import ghidra.program.model.data.StructureDataType;
+import ghidra.program.model.listing.Function;
+import ghidra.program.model.listing.ParameterImpl;
+import ghidra.program.model.listing.Variable;
+import ghidra.program.model.listing.Function.FunctionUpdateType;
+import ghidra.program.model.symbol.SourceType;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.program.model.data.ParameterDefinition;
 import ghidra.program.model.data.ParameterDefinitionImpl;
 import ghidra.program.model.data.FunctionDefinitionDataType;
 
-import vita.misc.TypesManager;
+import vita.misc.TypeHelper;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
 public class LibcAllocReplacement implements StructConverter {
@@ -33,12 +38,14 @@ public class LibcAllocReplacement implements StructConverter {
 	public long user_malloc_stats;
 	public long user_malloc_stats_fast;
 	public long user_malloc_usable_size;
+	private final ProcessingContext _ctx;
+	private final Address _selfAddress;
 	public static final int SIZE = 0x34;
 	public static final String NAME = "SceLibcAllocReplacement";
 	
-	private static CategoryPath LIBC_REPLACEMENT_CATPATH = new CategoryPath(TypesManager.SCE_TYPES_CATPATH, "LibcAllocReplacement");
+	private static CategoryPath LIBC_REPLACEMENT_CATPATH = new CategoryPath(TypeHelper.SCE_TYPES_CATPATH, "LibcAllocReplacement");
 	
-	public LibcAllocReplacement(BinaryReader reader) throws IOException {
+	public LibcAllocReplacement(ProcessingContext ctx, Address libcAllocReplaceAddress, BinaryReader reader) throws IOException {
 		size = reader.readNextUnsignedInt();
 		unk4 = reader.readNextUnsignedInt();
 		user_malloc_init = reader.readNextUnsignedInt();
@@ -52,6 +59,9 @@ public class LibcAllocReplacement implements StructConverter {
 		user_malloc_stats = reader.readNextUnsignedInt();
 		user_malloc_stats_fast = reader.readNextUnsignedInt();
 		user_malloc_usable_size = reader.readNextUnsignedInt();
+		
+		_ctx = ctx;
+		_selfAddress = libcAllocReplaceAddress;
 	}
 	
 	@Override
@@ -60,12 +70,12 @@ public class LibcAllocReplacement implements StructConverter {
 	}
 
 	
-	public void apply(ProcessingContext ctx, Address libcAllocReplaceAddress, String moduleName) throws Exception {
+	public void apply() throws Exception {
 		//Local declarations for convenience
-		DataType size_t = TypesManager.size_t;
-		DataType pVoid = TypesManager.PVOID;
-		DataType sint = TypesManager.s32;
-		DataType uint = TypesManager.u32;
+		DataType size_t = TypeHelper.size_t;
+		DataType pVoid = TypeHelper.PVOID;
+		DataType sint = TypeHelper.s32;
+		DataType uint = TypeHelper.u32;
 		
 		//Create malloc_managed_size struct
 		StructureDataType mmsize = new StructureDataType(LIBC_REPLACEMENT_CATPATH, "malloc_managed_size", 8 * 4);
@@ -81,7 +91,7 @@ public class LibcAllocReplacement implements StructConverter {
 		FunctionDefinitionDataType F_user_malloc_finalize 	= fdef("user_malloc_finalize", VOID, NOARGS);
 		FunctionDefinitionDataType F_user_malloc 			= fdef("user_malloc", pVoid, spdef("size", size_t));
 		FunctionDefinitionDataType F_user_free 				= fdef("user_free", VOID, spdef("ptr", pVoid));
-		FunctionDefinitionDataType F_user_calloc 			= fdef("user_calloc", pVoid, pdef(new String[] {"nelem", "size"}, new DataType[] {size_t, size_t}));
+		FunctionDefinitionDataType F_user_calloc 			= fdef("user_calloc", pVoid, pdef(new String[]{"nelem", "size"}, new DataType[]{size_t, size_t}));
 		FunctionDefinitionDataType F_user_realloc 			= fdef("user_realloc", pVoid, pdef(new String[]{"ptr", "size"}, new DataType[]{pVoid, size_t}));
 		FunctionDefinitionDataType F_user_memalign 			= fdef("user_memalign", pVoid, pdef(new String[]{"boundary", "size"}, new DataType[]{size_t, size_t}));
 		FunctionDefinitionDataType F_user_reallocalign 		= fdef("user_reallocalign", pVoid, pdef(new String[]{"ptr", "size", "boundary"}, new DataType[]{pVoid, size_t, size_t}));
@@ -90,7 +100,7 @@ public class LibcAllocReplacement implements StructConverter {
 		FunctionDefinitionDataType F_user_malloc_usable_size = fdef("user_malloc_usable_size", size_t, spdef("ptr", pVoid));
 
 		//Create the structure itself
-		StructureDataType libc_alloc_replace_struct = TypesManager.createAndGetStructureDataType(LIBC_REPLACEMENT_CATPATH, NAME);
+		StructureDataType libc_alloc_replace_struct = TypeHelper.createAndGetStructureDataType(LIBC_REPLACEMENT_CATPATH, NAME);
 		libc_alloc_replace_struct.add(size_t, "size", "Size of this structure");
 		libc_alloc_replace_struct.add(uint, "unk4", null);
 		libc_alloc_replace_struct.add(new Pointer32DataType(F_user_malloc_init));
@@ -109,29 +119,22 @@ public class LibcAllocReplacement implements StructConverter {
 			System.err.println("Unexpected " + NAME + " data type size (" + libc_alloc_replace_struct.getLength() + " != expected " + SIZE + " !)");
 		
 		//Apply structure
-		ctx.api.clearListing(libcAllocReplaceAddress);
-		ctx.api.createData(libcAllocReplaceAddress, libc_alloc_replace_struct);
-		ctx.api.createLabel(libcAllocReplaceAddress, moduleName + "_" + libc_alloc_replace_struct.getName(), true);
+		_ctx.api.clearListing(_selfAddress);
+		_ctx.api.createData(_selfAddress, libc_alloc_replace_struct);
+		_ctx.api.createLabel(_selfAddress, _ctx.moduleName + "_" + libc_alloc_replace_struct.getName(), true);
 		
-		/*
-		 * 
-"user_malloc_init", VOID,
-"user_malloc_finalize", V
-"user_malloc", pVoid, spd
-"user_free", VOID, spdef(
-"user_calloc", pVoid, pde
-"user_realloc", pVoid, pd
-"user_memalign", pVoid, p
-"user_reallocalign", pVoi
-"user_malloc_stats", sint
-"user_malloc_stats_fast",
-"user_malloc_usable_size"
-		 */
-		//Declare each function
-		for (int i = 8 /* ignore first 2 fields */; i < (libc_alloc_replace_struct.getLength()); i+=4) {
-			Address fAddr = libcAllocReplaceAddress.add(i);
-			ctx.helper.createOneByteFunction("libc_replace_" + i, fAddr, false);
-		}
+		//Markup functions
+		__markup_if_present(this.user_malloc_init, "user_malloc_init", F_user_malloc_init);
+		__markup_if_present(this.user_malloc_finalize, "user_malloc_finalize", F_user_malloc_finalize);
+		__markup_if_present(this.user_malloc, "user_malloc", F_user_malloc);
+		__markup_if_present(this.user_free, "user_free", F_user_free);
+		__markup_if_present(this.user_calloc, "user_calloc", F_user_calloc);
+		__markup_if_present(this.user_realloc, "user_realloc", F_user_realloc);
+		__markup_if_present(this.user_memalign, "user_memalign", F_user_memalign);
+		__markup_if_present(this.user_reallocalign, "user_reallocalign", F_user_reallocalign);
+		__markup_if_present(this.user_malloc_stats, "user_malloc_stats", F_user_malloc_stats);
+		__markup_if_present(this.user_malloc_stats_fast, "user_malloc_stats_fast", F_user_malloc_stats_fast);
+		__markup_if_present(this.user_malloc_usable_size, "user_malloc_usable_size", F_user_malloc_usable_size);
 	}
 	
 	private static final ParameterDefinition[] NOARGS = new ParameterDefinition[]{};
@@ -161,5 +164,21 @@ public class LibcAllocReplacement implements StructConverter {
 		r.setReturnType(returnType);
 		r.setArguments(args);
 		return r;
+	}
+	
+	private void __markup_if_present(long address, String name, FunctionDefinitionDataType function) throws Exception {
+		if (address == 0L)
+			return;
+		
+		ParameterDefinition[] fArgs = function.getArguments();
+		Function f = _ctx.helper.createOneByteFunction(name, _ctx.textStart.getNewAddress(address), false);
+		f.setReturnType(function.getReturnType(), SourceType.ANALYSIS);
+		if (fArgs.length > 0) {
+			Variable[] vars = new Variable[fArgs.length];
+			for (int i = 0; i < fArgs.length; i++) {
+				vars[i] = new ParameterImpl(fArgs[i].getName(), fArgs[i].getDataType(), _ctx.program);
+			}
+			f.replaceParameters(FunctionUpdateType.DYNAMIC_STORAGE_ALL_PARAMS, true, SourceType.ANALYSIS, vars);
+		}
 	}
 }

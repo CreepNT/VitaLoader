@@ -91,7 +91,8 @@ public class VitaLoader extends ElfLoader {
 		}
 	}
 
-	public static String USE_CUSTOM_DATABASE_NAME = "Use Custom NID Database";
+	public static String USE_CUSTOM_NIDS_DATABASE_OPTNAME = "Use User-Provided NIDs Database";
+	public static String USE_CUSTOM_TYPES_DATABASE_OPTNAME = "Import User-Provided Types Database";
 	
 	@Override
 	public List<Option> getDefaultOptions(ByteProvider provider, LoadSpec loadSpec,
@@ -100,7 +101,8 @@ public class VitaLoader extends ElfLoader {
 			super.getDefaultOptions(provider, loadSpec, domainObject, isLoadIntoProgram);
 
 		
-		list.add(new Option(USE_CUSTOM_DATABASE_NAME, true));
+		list.add(new Option(USE_CUSTOM_NIDS_DATABASE_OPTNAME, true));
+		//list.add(new Option(USE_CUSTOM_TYPES_DATABASE_OPTNAME, false)); //Types database code is just trash, don't allow user to use it
 
 		return list;
 	}
@@ -109,8 +111,11 @@ public class VitaLoader extends ElfLoader {
 	public String validateOptions(ByteProvider provider, LoadSpec loadSpec, List<Option> options, Program program) {
 		for (Option option : options) {
 			String name = option.getName();
-			if (name.equals(USE_CUSTOM_DATABASE_NAME) && !Boolean.class.isAssignableFrom(option.getValueClass())) {
-					return "Invalid type for option: " + name + " - " + option.getValueClass();
+			if (name.equals(USE_CUSTOM_NIDS_DATABASE_OPTNAME) && !Boolean.class.isAssignableFrom(option.getValueClass())) {
+				return "Invalid type for option: " + name + " - " + option.getValueClass();
+			}
+			if (name.equals(USE_CUSTOM_TYPES_DATABASE_OPTNAME) && !Boolean.class.isAssignableFrom(option.getValueClass())) {
+				return "Invalid type for option: " + name + " - " + option.getValueClass();
 			}
 		}
 

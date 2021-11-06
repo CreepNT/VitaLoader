@@ -9,10 +9,11 @@ import ghidra.program.model.address.Address;
 import ghidra.app.util.bin.StructConverterUtil;
 import ghidra.program.model.data.StructureDataType;
 import ghidra.program.model.data.Pointer32DataType;
+import ghidra.program.model.data.StringDataType;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.program.model.mem.MemoryAccessException;
 
-import vita.misc.TypesManager;
+import vita.misc.TypeHelper;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
 public class SceModuleImports_3xx implements StructConverter {
@@ -28,17 +29,16 @@ public class SceModuleImports_3xx implements StructConverter {
 	public long func_entry_table;
 	public long var_nid_table;
 	public long var_entry_table;
+	private ProcessingContext _ctx;
+	private Address _selfAddress;
 	public static final int SIZE = 0x24;
 	public static final String NAME = "SceModuleImports_3xx";
 	
 	public String _LibraryName;	//Parsed library name - not part of the struct itself
-	
-	private ProcessingContext _ctx;
-	private Address _selfAddress;
 
 	public SceModuleImports_3xx(ProcessingContext ctx, Address moduleImportsAddr) 
 			throws IOException, MemoryAccessException {
-		BinaryReader reader = TypesManager.getByteArrayBackedBinaryReader(ctx, moduleImportsAddr, SIZE);
+		BinaryReader reader = TypeHelper.getByteArrayBackedBinaryReader(ctx, moduleImportsAddr, SIZE);
 
 		size = reader.readNextShort();
 		version = reader.readNextShort();
@@ -57,7 +57,7 @@ public class SceModuleImports_3xx implements StructConverter {
 		_selfAddress = moduleImportsAddr;
 		
 		if (library_name_ptr != 0L) {
-			BinaryReader libNameReader = TypesManager.getMemoryBackedBinaryReader(ctx.memory,
+			BinaryReader libNameReader = TypeHelper.getMemoryBackedBinaryReader(ctx.memory,
 					ctx.textBlock.getStart().getNewAddress(library_name_ptr));
 			_LibraryName = libNameReader.readNextAsciiString();
 		}
@@ -68,7 +68,7 @@ public class SceModuleImports_3xx implements StructConverter {
 	}
 	
 	public void apply() throws Exception {
-		StructureDataType dt = TypesManager.createAndGetStructureDataType(NAME);
+		StructureDataType dt = TypeHelper.createAndGetStructureDataType(NAME);
 		dt.add(WORD, "size", "Size of this structure");
 		dt.add(WORD, "version", null);
 		dt.add(WORD, "attribute", null);
@@ -76,7 +76,7 @@ public class SceModuleImports_3xx implements StructConverter {
 		dt.add(WORD, "num_vars", "Number of variables imported from this library");
 		dt.add(WORD, "unk", null);
 		dt.add(DWORD, "library_nid", "Numeric ID of library");
-		dt.add(Pointer32DataType.dataType, "library_name", "Pointer to library name");
+		dt.add(new Pointer32DataType(StringDataType.dataType), "library_name", "Pointer to library name");
 		dt.add(Pointer32DataType.dataType, "func_nid_table", "Pointer to functions NID table");
 		dt.add(Pointer32DataType.dataType, "func_entry_table", "Pointer to functions entrypoints table");
 		dt.add(Pointer32DataType.dataType, "var_nid_table", "Pointer to variables NID table");

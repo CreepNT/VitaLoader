@@ -11,7 +11,7 @@ import ghidra.util.task.TaskMonitor;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.data.Pointer32DataType;
 
-import vita.misc.TypesManager;
+import vita.misc.TypeHelper;
 import vita.misc.ImportsManager;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
@@ -26,7 +26,7 @@ public class GenericModuleImports {
 	}
 	
 	//Default name is specified in case library name is not specified, which *should* never happen.
-	public String LibraryName = "((Paradox Error))";	//Name of the imported library
+	public String LibraryName = "((Paradox ERR))";	//Name of the imported library
 	public long LibraryNID;		//Numeric ID of imported library
 	public int NumFunctions;	//Number of functions imported from this library
 	public long FuncNIDTable; 	//Offset to functions NID table
@@ -70,10 +70,10 @@ public class GenericModuleImports {
 			//Create NIDs and entry tables
 			Address funcNidTableAddr = _ctx.textBlock.getStart().getNewAddress(FuncNIDTable);
 			Address funcEntTableAddr = _ctx.textBlock.getStart().getNewAddress(FuncEntryTable);
-			_ctx.helper.createSymbol(funcNidTableAddr, _ctx.moduleName + "_imports_" + LibraryName + "_function_NID_table", true, false, null);
-			_ctx.helper.createSymbol(funcEntTableAddr, _ctx.moduleName + "_imports_" + LibraryName + "_function_entry_table", true, false, null);
-			_ctx.helper.createData(funcNidTableAddr, TypesManager.makeArray(TypesManager.u32, NumFunctions));
-			_ctx.helper.createData(funcEntTableAddr, TypesManager.makeArray(Pointer32DataType.dataType, NumFunctions));
+			_ctx.helper.createSymbol(funcNidTableAddr, _ctx.moduleName + "_" + LibraryName + "_function_imports_NID_table", true, false, null);
+			_ctx.helper.createSymbol(funcEntTableAddr, _ctx.moduleName + "_" + LibraryName + "_function_imports_entry_table", true, false, null);
+			_ctx.helper.createData(funcNidTableAddr, TypeHelper.makeArray(TypeHelper.u32, NumFunctions));
+			_ctx.helper.createData(funcEntTableAddr, TypeHelper.makeArray(Pointer32DataType.dataType, NumFunctions));
 
 			
 			byte[] funcNidTableBytes = new byte[4 * NumFunctions];
@@ -101,18 +101,18 @@ public class GenericModuleImports {
 			//Create NIDs and entry tables
 			Address varNidTableAddr = _ctx.textBlock.getStart().getNewAddress(VarNIDTable);
 			Address varEntTableAddr = _ctx.textBlock.getStart().getNewAddress(VarLocTable);
-			_ctx.helper.createSymbol(varNidTableAddr, _ctx.moduleName + "_imports_" + LibraryName + "_variable_NID_table", true, false, null);
-			_ctx.helper.createSymbol(varEntTableAddr, _ctx.moduleName + "_imports_" + LibraryName + "_variable_entry_table", true, false, null);
-			_ctx.helper.createData(varNidTableAddr, TypesManager.makeArray(TypesManager.u32, NumVariables));
-			_ctx.helper.createData(varEntTableAddr, TypesManager.makeArray(Pointer32DataType.dataType, NumVariables));
+			_ctx.helper.createSymbol(varNidTableAddr, _ctx.moduleName + "_" + LibraryName + "_variable_imports_NID_table", true, false, null);
+			_ctx.helper.createSymbol(varEntTableAddr, _ctx.moduleName + "_" + LibraryName + "_variable_imports_entry_table", true, false, null);
+			_ctx.helper.createData(varNidTableAddr, TypeHelper.makeArray(TypeHelper.u32, NumVariables));
+			_ctx.helper.createData(varEntTableAddr, TypeHelper.makeArray(Pointer32DataType.dataType, NumVariables));
 		
 			byte[] varNidTableBytes = new byte[4 * NumVariables];
 			byte[] varEntTableBytes = new byte[4 * NumVariables];
 			_ctx.textBlock.getBytes(varNidTableAddr, varNidTableBytes);
 			_ctx.textBlock.getBytes(varEntTableAddr, varEntTableBytes);
 
-			IntBuffer varNidTableIntBuffer = ByteBuffer.wrap(varNidTableBytes).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
-			IntBuffer varEntTableIntBuffer = ByteBuffer.wrap(varEntTableBytes).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
+			IntBuffer varNidTableIntBuffer = ByteBuffer.wrap(varNidTableBytes).order(TypeHelper.BYTE_ORDER).asIntBuffer();
+			IntBuffer varEntTableIntBuffer = ByteBuffer.wrap(varEntTableBytes).order(TypeHelper.BYTE_ORDER).asIntBuffer();
 
 			prepareMonitorProgressBar(_ctx.monitor, "Resolving variable imports from " + LibraryName + "...", NumFunctions);
 			for (int i = 0; i < NumVariables; i++, _ctx.monitor.incrementProgress(1)) {

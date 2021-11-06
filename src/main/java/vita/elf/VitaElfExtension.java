@@ -1,24 +1,23 @@
 package vita.elf;
 
-
+import ghidra.util.task.TaskMonitor;
+import ghidra.program.model.mem.Memory;
+import ghidra.app.util.importer.MessageLog;
+import ghidra.program.model.address.Address;
+import ghidra.program.model.listing.Program;
+import ghidra.program.model.mem.MemoryBlock;
+import ghidra.program.flatapi.FlatProgramAPI;
+import ghidra.util.exception.CancelledException;
 import ghidra.app.util.bin.format.elf.ElfHeader;
+import ghidra.program.model.data.DataTypeManager;
 import ghidra.app.util.bin.format.elf.ElfLoadHelper;
 import ghidra.app.util.bin.format.elf.extend.ElfExtension;
-import ghidra.app.util.importer.MessageLog;
-import ghidra.program.flatapi.FlatProgramAPI;
-import ghidra.program.model.address.Address;
-import ghidra.program.model.data.DataTypeManager;
-import ghidra.program.model.listing.Program;
-import ghidra.program.model.mem.Memory;
-import ghidra.program.model.mem.MemoryBlock;
-import ghidra.program.model.symbol.ExternalManager;
-import ghidra.util.exception.CancelledException;
-import ghidra.util.task.TaskMonitor;
 
-import vita.types.*;
+import vita.types.SceModuleInfo;
+
+import vita.misc.TypeHelper;
 import vita.misc.NIDDatabase;
-import vita.misc.NIDDatabase.DatabaseType;
-import vita.misc.TypesManager;
+import vita.misc.TypeDatabase;
 
 public class VitaElfExtension extends ElfExtension {
 	//TODO: Fix Super Duper Ugly Hack
@@ -29,40 +28,41 @@ public class VitaElfExtension extends ElfExtension {
 	
 	//Structure to hold ELF processing context
 	public class ProcessingContext {
-		public ExternalManager extMan;	//
-		public ElfLoadHelper helper;	
-		public DataTypeManager dtm;		//Result of program.getDataTypeManager();
-		public TaskMonitor monitor;
-		public FlatProgramAPI api;		//Result of new FlatProgramAPI(program);
-		public String moduleName;		//Added by SceModuleInfo in its constructor
-		public MessageLog logger;
-		public MemoryBlock textBlock; 	//.text block
-		public MemoryBlock dataBlock;	//.data block
-		public Program program;			//Result of ElfLoadHelper.getProgram();
-		public Memory memory;			//Result of program.getMemory();
+		public final VitaElfProgramBuilder helper;	
+		public final MemoryBlock textBlock; //.text block
+		public final MemoryBlock dataBlock;	//.data block
+		public final TaskMonitor monitor;
+		public final DataTypeManager dtm;	//Result of program.getDataTypeManager();
+		public final FlatProgramAPI api;	//Result of new FlatProgramAPI(program);
+		public final Address textStart;		//Start address of the .text block
+		public final Address dataStart;		//Start address of the .data block
+		public final MessageLog logger;
+		public final Program program;		//Result of ElfLoadHelper.getProgram();
+		public final Memory memory;			//Result of program.getMemory();
 		
-
+		public final TypeDatabase typeDb;
+		public final NIDDatabase nidDb;
 		
-		public ProcessingContext() {}
-		public ProcessingContext (TaskMonitor monitor, ElfLoadHelper helper, MemoryBlock textBlock, MemoryBlock dataBlock){
+		public String moduleName; //Added by SceModuleInfo in its constructor
+		
+		public ProcessingContext (TaskMonitor monitor, VitaElfProgramBuilder helper){
+			this.moduleName = "Paradox ERR"; //Placeholder to avoid NullPointerException, even though it should never happen
+		
 			this.helper 	= helper;
 			this.monitor 	= monitor;
-			this.textBlock	= textBlock;
-			this.dataBlock 	= dataBlock;
 			this.logger 	= helper.getLog();
 			this.program 	= helper.getProgram();
 			this.memory 	= this.program.getMemory();
 			this.dtm 		= this.program.getDataTypeManager();
 			this.api		= new FlatProgramAPI(this.program);
-			this.extMan 	= null;
-			this.moduleName = "(Paradox Error)"; //Placeholder to avoid NullPointerException, even though it should never happen
-		}
-		
-		public void Cleanup() {
-			logger = null;
-			monitor = null;
-			program = null;
-			memory = null;
+			
+			this.dataBlock 	= getRWMemBlock(this.memory);
+			this.textBlock	= getExecutableMemBlock(this.memory);
+			this.textStart  = this.textBlock.getStart();
+			this.dataStart  = this.dataBlock.getStart();
+			
+			this.typeDb = new TypeDatabase(this);
+			this.nidDb = new NIDDatabase(this);
 		}
 	}
 	
@@ -86,14 +86,21 @@ public class VitaElfExtension extends ElfExtension {
 	
 	@Override
 	public void processElf(ElfLoadHelper helper, TaskMonitor monitor) throws CancelledException {
+		VitaElfProgramBuilder programBuilder = (VitaElfProgramBuilder)helper;
 		VitaElfHeader elf = (VitaElfHeader)helper.getElfHeader();
-		Memory memory = helper.getProgram().getMemory();
-		MemoryBlock textBlock = getExecutableMemBlock(memory); 	//.text block
-		MemoryBlock dataBlock = getRWMemBlock(memory);			//.data block
-		ProcessingContext ctx = new ProcessingContext(monitor, helper, textBlock, dataBlock);
+		ProcessingContext ctx = new ProcessingContext(monitor, programBuilder);
+		
+		//Add default SCE datatypes
+		ctx.typeDb.addSceTypes(TypeHelper.SCE_TYPES_CATPATH);
+		
+		//Load types database if user asked to provide one
+		//ctx.typeDb.loadAndParseToProgram(ctx.helper.useExternalTypes); //No - TypeDatabase is broken
+		
+		//Load NIDs database
+		ctx.nidDb.populate(ctx.helper.useExternalNIDs);
 		
 		//e_entry in ELF header holds offset to SceModuleInfo
-		Address SceModuleInfoAddress = textBlock.getStart().add(elf.e_entry());
+		Address SceModuleInfoAddress = ctx.textStart.add(elf.e_entry());
 		try {
 			SceModuleInfo modInfo = new SceModuleInfo(ctx, SceModuleInfoAddress);
 			modInfo.apply();
@@ -102,15 +109,9 @@ public class VitaElfExtension extends ElfExtension {
 			ctx.logger.appendException(e);
 		}
 		
-		//Add default SCE datatypes
-		TypesManager.createSceDataTypes(helper.getProgram().getDataTypeManager());
-		
 		//Set compiler name (arbitrarily, just for fun :D)
 		ctx.program.setCompiler("SNC");
 		
-		if (NIDDatabase.getDatabaseType() == DatabaseType.DATABASE_NONE) {
-			ctx.logger.appendMsg("Couldn't load any NID database - default names used instead.");
-		}
 	}
 			
 /*

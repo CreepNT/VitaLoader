@@ -1,16 +1,18 @@
 package vita.misc;
 
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.HashMap;
+import java.io.FileReader;
+import java.io.FileNotFoundException;
 
 import com.esotericsoftware.yamlbeans.YamlException;
 import com.esotericsoftware.yamlbeans.YamlReader;
 
-import docking.widgets.filechooser.GhidraFileChooser;
+import resources.ResourceManager;
+import vita.elf.VitaElfExtension.ProcessingContext;
 import ghidra.framework.preferences.Preferences;
+import docking.widgets.filechooser.GhidraFileChooser;
 
 public class NIDDatabase {
 	public static class NidDatabaseLibrary {
@@ -49,49 +51,30 @@ public class NIDDatabase {
 
 	public HashMap<Long, NidDatabaseLibrary> libraries;
 	
-	public static enum DatabaseType {
-			DATABASE_NONE,
-			DATABASE_INTERNAL,
-			DATABASE_USER_PROVIDED
-	}
+	private static final String INTERNAL_NIDS_DB_PATH = "databases\\NID_db.yml";
+	private final ProcessingContext _ctx;
 	
-	private static NIDDatabase INSTANCE = null;
-	private static DatabaseType databaseType = DatabaseType.DATABASE_NONE;
-	
-	private NIDDatabase() {
+	public NIDDatabase(ProcessingContext ctx) {
+		_ctx = ctx;
 		libraries = new HashMap<Long, NidDatabaseLibrary>();
 	}
+
+	public boolean libraryExists(long nid) {
+		return libraries.containsKey(nid);
+	}
 	
-	public static NIDDatabase getInstance() {
-		if (INSTANCE == null)
-			INSTANCE = new NIDDatabase();
-		return INSTANCE;
+	public NidDatabaseLibrary getLibrary(long libraryNid) {
+		return libraries.get(libraryNid);
 	}
 
-	public static DatabaseType getDatabaseType() {
-		return databaseType;
-	}
-	
-	public static boolean libraryExists(long nid) {
-		if (databaseType == DatabaseType.DATABASE_NONE)
-			return false;
-		return getInstance().libraries.containsKey(nid);
-	}
-	
-	public static NidDatabaseLibrary getLibrary(long libraryNid) {
-		if (databaseType == DatabaseType.DATABASE_NONE)
-			return null;
-		return getInstance().libraries.get(libraryNid);
-	}
-
-	public static String getFunctionName(long libraryNid, long functionNid) {
+	public String getFunctionName(long libraryNid, long functionNid) {
 		NidDatabaseLibrary library = getLibrary(libraryNid);
 		if (library == null)
 			return null;
 		return library.getFunctionName(functionNid);
 	}
 
-	public static String getVariableName(long libraryNid, long variableNid) {
+	public String getVariableName(long libraryNid, long variableNid) {
 		NidDatabaseLibrary library = getLibrary(libraryNid);
 		if (library == null)
 			return null;
@@ -120,8 +103,7 @@ public class NIDDatabase {
 		libraries.put(libraryNid, library);
 	}
 	
-	private static void populateNidDatabaseFromYaml(YamlNidDatabase raw) {
-		NIDDatabase db = getInstance();
+	private void populateNidDatabaseFromYaml(YamlNidDatabase raw) {
 		for (Map.Entry<String, YamlNidDatabaseModule> moduleIt: raw.modules.entrySet()) {
 			YamlNidDatabaseModule moduleRaw = moduleIt.getValue();
 			for (Map.Entry<String, YamlNidDatabaseLibrary> libraryIt: moduleRaw.libraries.entrySet()) {
@@ -135,13 +117,12 @@ public class NIDDatabase {
 					for (Map.Entry<String, Long> variableIt: libraryRaw.variables.entrySet())
 						library.insertVariable(variableIt.getValue(), variableIt.getKey());
 	
-				db.insertLibrary(libraryRaw.nid, library);
+				insertLibrary(libraryRaw.nid, library);
 			}
 		}
 	}
 
-	@SuppressWarnings("unused")
-	public static void populateInternalDatabase(boolean promptForCustomDB) throws FileNotFoundException, YamlException {
+	public void populate(boolean promptForCustomDB) {
 		File dbFile = null;
 		
 		if (promptForCustomDB) {
@@ -153,27 +134,27 @@ public class NIDDatabase {
 			fileChooser.setApproveButtonText("Parse selected file");
 			fileChooser.rescanCurrentDirectory();
 			dbFile = fileChooser.getSelectedFile();
-			databaseType = DatabaseType.DATABASE_USER_PROVIDED;
 		}
 
 		//User-provided database loading failed, fallback to internal database
 		if (dbFile == null) {
-			databaseType = DatabaseType.DATABASE_INTERNAL;
-			//TODO: Try to load internal database
-			
-			//Internal database loading also failed, update state as such and abort processing
-			if (dbFile == null) {
-				databaseType = DatabaseType.DATABASE_NONE;
-				return;
-			}
-			
+			dbFile = ResourceManager.getResourceFile(INTERNAL_NIDS_DB_PATH);
+		}
+		
+		//Abort loading if we have no database
+		if (dbFile == null) {
+			return;
 		}
 
 		/* Load NID database */
-		YamlReader yamlReader = new YamlReader(new FileReader(dbFile));
-		YamlNidDatabase dbRaw = yamlReader.read(YamlNidDatabase.class);
-		populateNidDatabaseFromYaml(dbRaw);
-		
+		try {
+			YamlReader yamlReader = new YamlReader(new FileReader(dbFile));
+			YamlNidDatabase dbRaw = yamlReader.read(YamlNidDatabase.class);
+			populateNidDatabaseFromYaml(dbRaw);
+		} catch (YamlException | FileNotFoundException e) {
+			_ctx.logger.appendMsg("Failed to load NIDs database due to the following exception:");
+			_ctx.logger.appendException(e);
+		}
 	}
 	
 }

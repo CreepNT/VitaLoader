@@ -1,6 +1,5 @@
 package vita.misc;
 
-
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Library;
 import ghidra.program.model.listing.CodeUnit;
@@ -24,12 +23,13 @@ public final class ImportsManager {
 
 	public void markupImportedFunction(String libraryName, long libraryNid, long functionNid, Address functionAddress) throws Exception {
 		String functionName = String.format("%s_%08X", libraryName, functionNid);
-		String dbName = NIDDatabase.getFunctionName(libraryNid, functionNid);
+		String dbName = _ctx.nidDb.getFunctionName(libraryNid, functionNid);
 		if (dbName != null)
 			functionName = dbName;
 
 		/*Namespace ns =*/ getNamespaceFromLibName(libraryName); //Call to create libraries anyways
 		Function f = _ctx.helper.createExternalFunctionLinkage(functionName, functionAddress, null);
+		
 		//TODO: add function to namespace somehow
 		//Why did I not do it already ? Vita external functions are actually trunks in the ELF's .text block
 		//What this means is that functionAddress.isExternal() is false
@@ -38,14 +38,14 @@ public final class ImportsManager {
 		//If you followed properly, you should see where the problem is.
 		//I haven't figured out a way to mark a specific address as external, sadly.
 		
-		f.setComment(String.format("Imported module file name : %s\nImported library name : %s\nFunction NID : 0x%08X\n---\t%s_%08X\t---", 
+		f.setComment(String.format("Imported module file name : %s\nImported library name : %s\nFunction NID : 0x%08X\n---   %s_%08X   ---", 
 				getModuleFileNameFromLibName(libraryName), libraryName, functionNid, libraryName, functionNid));
 	}
 	
 	public void markupImportedVariable(String libraryName, long libraryNid, long variableNid, Address variableAddress) throws Exception {
 		String variableName = libraryName + String.format("_%08X", variableNid);
 
-		String dbName = NIDDatabase.getVariableName(libraryNid, variableNid);
+		String dbName = _ctx.nidDb.getVariableName(libraryNid, variableNid);
 		if (dbName != null)
 			variableName = dbName;
 		
@@ -56,29 +56,27 @@ public final class ImportsManager {
 	}
 	
 	private String getModuleFileNameFromLibName(String libraryName) {
-		String modName = NameUtil.get().getModuleNameFromLibraryName(libraryName);
+		String modName = NameUtil.getModuleNameFromLibraryName(libraryName);
 		if (modName == null) {
-			_ctx.logger.appendMsg("Couldn't find module name for library name " + libraryName);
-			return null;
+			return "Unknown";
 		}
 		
-		String fileName = NameUtil.get().getFileNameFromModuleName(modName);
+		String fileName = NameUtil.getFileNameFromModuleName(modName);
 		if (fileName == null) {
-			_ctx.logger.appendMsg("Couldn't find file name for module name " + modName);
-			return null;
+			return "Unknown";
 		}
 		return fileName;
 	}
 	
 	//Also creates the namespace if it doesn't exist yet
 	private Namespace getNamespaceFromLibName(String libraryName) throws DuplicateNameException, InvalidInputException {
-		String modName = NameUtil.get().getModuleNameFromLibraryName(libraryName);
+		String modName = NameUtil.getModuleNameFromLibraryName(libraryName);
 		if (modName == null) {
 			_ctx.logger.appendMsg("Couldn't find module name for library name " + libraryName);
 			return _ctx.program.getGlobalNamespace();
 		}
 		
-		String fileName = NameUtil.get().getFileNameFromModuleName(modName);
+		String fileName = NameUtil.getFileNameFromModuleName(modName);
 		if (fileName == null) {
 			_ctx.logger.appendMsg("Couldn't find file name for module name " + modName);
 			return _ctx.program.getGlobalNamespace();

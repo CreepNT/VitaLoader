@@ -20,10 +20,13 @@ import ghidra.util.StringUtilities;
 import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
 import vita.loader.VitaLoader;
-import vita.misc.NIDDatabase;
 import ghidra.app.util.opinion.DefaultElfProgramBuilder;
 
 public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
+	public boolean useExternalNIDs = false;
+	public boolean useExternalTypes = false;
+	
+	
 	protected VitaElfProgramBuilder(VitaElfHeader elf, Program program, List<Option> options,
 			MessageLog log) {
 		super(elf, program, options, log);
@@ -44,6 +47,10 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 	//Probably because DefaultElfProgramBuilder calls top-level through invoke() - it works so I'm not fixing it
 	@Override
 	protected void load(TaskMonitor monitor) throws IOException, CancelledException {
+		//Parse Vita-specific options
+		this.useExternalTypes = getBooleanOption(VitaLoader.USE_CUSTOM_TYPES_DATABASE_OPTNAME);
+		this.useExternalNIDs = getBooleanOption(VitaLoader.USE_CUSTOM_NIDS_DATABASE_OPTNAME);
+		
 		VitaElfHeader elf = getElfHeader();
 		Memory memory = getMemory();
 		monitor.setMessage("Completing ELF header parsing...");
@@ -105,8 +112,6 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 
 			processSymbolTables(monitor);
 
-			NIDDatabase.populateInternalDatabase(getDoPromptOption(getOptions()));
-			
 			//Normally, we should call this and it should work by magic
 			//But I just don't understand how GhidraOrbis gets this to work
 			//I think including ExtensionPoint *should* make Ghidra auto-load the class,
@@ -197,11 +202,10 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 
 	}
 	
-	private boolean getDoPromptOption(List<Option> options) {
-		for (Option option : options) {
-			String name = option.getName();
-			if (name.equals(VitaLoader.USE_CUSTOM_DATABASE_NAME) && Boolean.class.isAssignableFrom(option.getValueClass())) {
-					return (boolean)option.getValue();
+	private boolean getBooleanOption(String optionName) {
+		for (Option option : getOptions()) {
+			if (option.getName().equals(optionName) && Boolean.class.isAssignableFrom(option.getValueClass())) {
+				return (boolean)option.getValue();
 			}
 		}
 		return false;

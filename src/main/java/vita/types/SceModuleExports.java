@@ -20,7 +20,7 @@ import ghidra.util.exception.InvalidInputException;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.program.model.mem.MemoryAccessException;
 
-import vita.misc.TypesManager;
+import vita.misc.TypeHelper;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
 
@@ -53,8 +53,10 @@ public class SceModuleExports implements StructConverter {
 	private static final long MODULE_INFO_NID 			= 0x6C2224BAL; //SceModuleInfo
 	private static final long MODULE_SDK_VERSION_NID 	= 0x936C8A78L; //uint
 	private static final long PROCESS_PARAM_NID 		= 0x70FBA1E7L; //SceProcessParam
+	private static final long PROCESSMGR_DESCRIPTOR_NID = 0x9318D9DDL; //0x14 bytes structure exported by SceProcessmgr
+	private static final long PROCESSMGR_VTABLE_NID		= 0x8CE938B1L; //Vtable exported by SceProcessmgr
 	
-	private static final String NAMELESS_LIBRARY_NAME = "(~~~__NAMELESS_LIBRARY__~~~)";
+	private static final String NAMELESS_LIBRARY_NAME = "__VITALOADER_NAMELESS_LIBRARY_NAME__";
 	private ProcessingContext _ctx; //Processing context
 	private Address _selfAddress; 	//Address we're located at
 	private String _libraryName; 	//Name of the library those exports belong to
@@ -68,7 +70,7 @@ public class SceModuleExports implements StructConverter {
 	 */
 	public SceModuleExports(ProcessingContext ctx, Address moduleExportsAddr) 
 			throws IOException, MemoryAccessException {
-		BinaryReader reader = TypesManager.getByteArrayBackedBinaryReader(ctx, moduleExportsAddr, SIZE);
+		BinaryReader reader = TypeHelper.getByteArrayBackedBinaryReader(ctx, moduleExportsAddr, SIZE);
 		
 		size 			= reader.readNextUnsignedShort();
 		version 		= reader.readNextUnsignedShort();
@@ -88,7 +90,7 @@ public class SceModuleExports implements StructConverter {
 		
 		//Parse library name if present
 		if (this.library_name_ptr != 0L) {
-			BinaryReader libNameReader = TypesManager.getMemoryBackedBinaryReader(ctx.memory,
+			BinaryReader libNameReader = TypeHelper.getMemoryBackedBinaryReader(ctx.memory,
 					ctx.textBlock.getStart().getNewAddress(this.library_name_ptr));
 			_libraryName = libNameReader.readNextAsciiString();
 		}
@@ -104,7 +106,7 @@ public class SceModuleExports implements StructConverter {
 	 */
 	public void apply() throws Exception {
 		//Create structure object
-		StructureDataType dt = TypesManager.createAndGetStructureDataType(NAME);
+		StructureDataType dt = TypeHelper.createAndGetStructureDataType(NAME);
 		dt.add(WORD, "size", "Size of this structure");
 		dt.add(WORD, "version", null);
 		dt.add(WORD, "attributes", null);
@@ -141,8 +143,8 @@ public class SceModuleExports implements StructConverter {
 		Address nidTableAddress = _ctx.textBlock.getStart().getNewAddress(nid_table);
 		Address entryTableAddress = _ctx.textBlock.getStart().getNewAddress(entry_table);
 
-		_ctx.helper.createData(nidTableAddress, TypesManager.makeArray(TypesManager.u32, (num_functions + num_vars)));
-		_ctx.helper.createData(entryTableAddress, TypesManager.makeArray(Pointer32DataType.dataType, (num_functions + num_vars)));
+		_ctx.helper.createData(nidTableAddress, TypeHelper.makeArray(TypeHelper.u32, (num_functions + num_vars)));
+		_ctx.helper.createData(entryTableAddress, TypeHelper.makeArray(Pointer32DataType.dataType, (num_functions + num_vars)));
 		_ctx.api.createLabel(entryTableAddress, prettyLibName + "_exports_entry_table", true, SourceType.ANALYSIS);
 		_ctx.api.createLabel(nidTableAddress, prettyLibName + "_exports_NID_table", true, SourceType.ANALYSIS);
 		
@@ -205,25 +207,28 @@ public class SceModuleExports implements StructConverter {
 			}
 		}
 		else {
-			//TODO: check if function exists in database for a more accurate name
+			String dbName = _ctx.nidDb.getFunctionName(this.library_nid, functionNid);
+			if (dbName != null)
+				functionName = dbName;
 		}
 		
 		Function f = _ctx.api.getFunctionAt(functionEntryAddr);
 		if (f == null) {
-			boolean isEntrypoint = (isNamelessLib && functionName.equals(MODULE_START_FUNC_NAME));
+			boolean isEntrypoint = (isNamelessLib && (functionName.equals(MODULE_START_FUNC_NAME) || functionName.equals(MODULE_BOOTSTART_FUNC_NAME)));
 			_ctx.helper.createOneByteFunction(functionName, functionEntryAddr, isEntrypoint);
 
 			f = _ctx.api.getFunctionAt(functionEntryAddr);
 			f.setSignatureSource(SourceType.ANALYSIS);
-		}
-		else {
+		} else {
 			f.setName(functionName, SourceType.ANALYSIS);
 		}
-		if (!isNamelessLib)
-			f.setComment(String.format("Exported library name : %s\nFunction NID : 0x%08X\n---\t%s_0x%08X\t---", libraryName, functionNid, libraryName, functionNid));
+		
+		if (!isNamelessLib) {
+			f.setComment(String.format("Exported library name : %s\nFunction NID : 0x%08X\n---   %s_0x%08X   ---", libraryName, functionNid, libraryName, functionNid));
+		}
 
 		//Mark as exported
-		//IF POSSIBLE - TODO: sort functions based on library name
+		//TODO, if possible: sort functions based on library name
 		_ctx.program.getSymbolTable().addExternalEntryPoint(functionEntryAddr);
 	}
 
@@ -233,7 +238,7 @@ public class SceModuleExports implements StructConverter {
 		Address varAddress = _ctx.textBlock.getStart().getNewAddress(variableAddress);
 		
 		if (isNamelessLib) {
-			//Before you come and say this is ugly or impractical and I should have used a Map :
+			//Before you come and say this is ugly or impractical and I should have used a Map:
 			//I tried it, and you're wrong. If you still think I should have, try it yourself,
 			//then blame yourself for wasting time on "making it faster and prettier" and not succeeding.
 			
@@ -241,20 +246,26 @@ public class SceModuleExports implements StructConverter {
 			if (variableNid == PROCESS_PARAM_NID) {
 				SceProcessParam spp = new SceProcessParam(_ctx, varAddress);
 				spp.apply();
-			}
-			else if (variableNid == MODULE_SDK_VERSION_NID) {
-				_ctx.api.createData(varAddress, TypesManager.u32);
+			} else if (variableNid == MODULE_SDK_VERSION_NID) {
+				_ctx.api.createData(varAddress, TypeHelper.u32);
 				_ctx.api.createLabel(varAddress, _ctx.moduleName + "_module_SDK_version", true, SourceType.ANALYSIS);
-			}
-			else if (variableNid == MODULE_INFO_NID) {
+			} else if (variableNid == MODULE_INFO_NID) {
 				//No processing needed, SceModuleInfo class already did (we're sure of that because it calls us)
-			}
-			else {
+			} else if (variableNid == PROCESSMGR_DESCRIPTOR_NID) {
+				_ctx.api.createData(varAddress, TypeHelper.makeArray(TypeHelper.u32, 0x14/0x4));
+				_ctx.api.createLabel(varAddress, _ctx.moduleName + "_proc_descriptor_?", true, SourceType.ANALYSIS);
+			} else if (variableNid == PROCESSMGR_VTABLE_NID) {
+				_ctx.api.createData(varAddress, TypeHelper.makeArray(TypeHelper.PVOID, 1)); //TODO: add correct number of vfunc
+				_ctx.api.createLabel(varAddress, _ctx.moduleName + "_proc_vtable_?", true, SourceType.ANALYSIS);
+			} else {
 				_ctx.logger.appendMsg(String.format("Unknown nameless variable export NID 0x%08X", variableNid));
-				return;
 			}
 			return;
 		}
+		
+		String dbName = _ctx.nidDb.getVariableName(variableAddress, variableNid);
+		if (dbName != null) 
+			variableName = dbName;
 		_ctx.api.createLabel(varAddress,  variableName, true, SourceType.ANALYSIS);
 		//IF POSSIBLE - TODO: mark variable as exported
 		//Maybe we could create a LibraryName_exports namespace or something ?

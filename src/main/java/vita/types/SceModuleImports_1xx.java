@@ -12,7 +12,7 @@ import ghidra.program.model.data.Pointer32DataType;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.program.model.mem.MemoryAccessException;
 
-import vita.misc.TypesManager;
+import vita.misc.TypeHelper;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
 public class SceModuleImports_1xx implements StructConverter {
@@ -42,7 +42,7 @@ public class SceModuleImports_1xx implements StructConverter {
 	
 	public SceModuleImports_1xx(ProcessingContext ctx, Address moduleImportsAddr) 
 			throws IOException, MemoryAccessException {
-		BinaryReader reader = TypesManager.getByteArrayBackedBinaryReader(ctx, moduleImportsAddr, SIZE);
+		BinaryReader reader = TypeHelper.getByteArrayBackedBinaryReader(ctx, moduleImportsAddr, SIZE);
 
 		size = reader.readNextShort();
 		version = reader.readNextShort();
@@ -65,7 +65,7 @@ public class SceModuleImports_1xx implements StructConverter {
 		_selfAddress = moduleImportsAddr;
 		
 		if (library_name_ptr != 0L) {
-			BinaryReader libNameReader = TypesManager.getMemoryBackedBinaryReader(ctx.memory,
+			BinaryReader libNameReader = TypeHelper.getMemoryBackedBinaryReader(ctx.memory,
 					ctx.textBlock.getStart().getNewAddress(library_name_ptr));
 			_LibraryName = libNameReader.readNextAsciiString();
 		}
@@ -76,7 +76,7 @@ public class SceModuleImports_1xx implements StructConverter {
 	}
 	
 	public void apply() throws Exception {
-		StructureDataType dt = TypesManager.createAndGetStructureDataType(NAME);
+		StructureDataType dt = TypeHelper.createAndGetStructureDataType(NAME);
 		dt.add(WORD, "size", "Size of this structure");
 		dt.add(WORD, "version", null);
 		dt.add(WORD, "attribute", null);

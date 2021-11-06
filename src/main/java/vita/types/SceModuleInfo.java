@@ -12,7 +12,7 @@ import ghidra.program.model.data.Pointer32DataType;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.program.model.mem.MemoryAccessException;
 
-import vita.misc.TypesManager;
+import vita.misc.TypeHelper;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
 public class SceModuleInfo implements StructConverter {
@@ -42,7 +42,7 @@ public class SceModuleInfo implements StructConverter {
 	private Address _selfAddress;
 	
 	public SceModuleInfo(ProcessingContext ctx, Address moduleInfoAddress) throws IOException, MemoryAccessException {
-		BinaryReader reader = TypesManager.getByteArrayBackedBinaryReader(ctx, moduleInfoAddress, SIZE);
+		BinaryReader reader = TypeHelper.getByteArrayBackedBinaryReader(ctx, moduleInfoAddress, SIZE);
 		attributes = reader.readNextShort();
 		version = reader.readNextShort();
 		name = reader.readNextAsciiString(27);
@@ -74,7 +74,7 @@ public class SceModuleInfo implements StructConverter {
 	}
 	
 	public void apply() throws Exception {
-		StructureDataType dt = TypesManager.createAndGetStructureDataType(NAME);
+		StructureDataType dt = TypeHelper.createAndGetStructureDataType(NAME);
 		dt.add(WORD, "attributes", null);
 		dt.add(WORD, "version", null);
 		dt.add(STRING, 27, "moduleName", "Name of this module");
@@ -130,7 +130,7 @@ public class SceModuleInfo implements StructConverter {
 		Address importsEnd = _ctx.textBlock.getStart().add(import_end);
 		
 		while (!importsStart.equals(importsEnd)) {
-			BinaryReader importsSizeReader = TypesManager.getByteArrayBackedBinaryReader(_ctx, importsStart, 2);
+			BinaryReader importsSizeReader = TypeHelper.getByteArrayBackedBinaryReader(_ctx, importsStart, 2);
 			int importsSize = importsSizeReader.peekNextShort(); //Use peek instead of read to have index at 0 for struct creation
 			GenericModuleImports importsObject = null;
 			switch (importsSize) {
