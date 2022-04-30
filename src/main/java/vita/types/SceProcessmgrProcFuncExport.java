@@ -8,6 +8,7 @@ import ghidra.app.util.bin.StructConverter;
 import ghidra.program.model.address.Address;
 import ghidra.app.util.bin.StructConverterUtil;
 import ghidra.program.model.data.StructureDataType;
+import ghidra.program.model.listing.Function;
 import ghidra.program.model.data.Pointer32DataType;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.program.model.mem.MemoryAccessException;
@@ -15,6 +16,8 @@ import ghidra.program.model.mem.MemoryAccessException;
 import vita.misc.TypeHelper;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
+//Bad name
+//TODO fixme
 public class SceProcessmgrProcFuncExport implements StructConverter {
 	public long unk0;
 	public String namePart1 = "";
@@ -89,12 +92,12 @@ public class SceProcessmgrProcFuncExport implements StructConverter {
 		
 		_ctx.api.clearListing(_selfAddress, _selfAddress.add(dt.getLength()));
 		_ctx.api.createData(_selfAddress, dt);
-		_ctx.api.createLabel(_selfAddress, "SceProcessmgrProcFuncExportEntry_" + namePart1 + namePart2, true);
+		_ctx.api.createLabel(_selfAddress, namePart1 + namePart2 + "_table", true);
 	}
 	
 	public void process() {
 		Address funcAddr = _ctx.textStart.getNewAddress(pFunc);
-		_ctx.api.createFunction(funcAddr, namePart1 + namePart2);
+		Function func = _ctx.api.createFunction(funcAddr, namePart1 + namePart2);
 	}
 
 }

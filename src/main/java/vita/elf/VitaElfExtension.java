@@ -5,11 +5,17 @@ import ghidra.program.model.mem.Memory;
 import ghidra.app.util.importer.MessageLog;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Program;
+import ghidra.program.model.listing.ProgramContext;
 import ghidra.program.model.mem.MemoryBlock;
 import ghidra.program.flatapi.FlatProgramAPI;
 import ghidra.util.exception.CancelledException;
+
+import java.math.BigInteger;
+
 import ghidra.app.util.bin.format.elf.ElfHeader;
 import ghidra.program.model.data.DataTypeManager;
+import ghidra.program.model.lang.Register;
+import ghidra.program.model.lang.RegisterValue;
 import ghidra.app.util.bin.format.elf.ElfLoadHelper;
 import ghidra.app.util.bin.format.elf.extend.ElfExtension;
 
@@ -23,10 +29,8 @@ public class VitaElfExtension extends ElfExtension {
 	//TODO: Fix Super Duper Ugly Hack
 	public VitaElfExtension() {}
 	
-	//NOTE:
-	//If you have a 0x81000000 ptr, then get an Address with block.getStart().getNewAddress(ptr)
-	
 	//Structure to hold ELF processing context
+	//TODO make this cleaner please!
 	public class ProcessingContext {
 		public final VitaElfProgramBuilder helper;	
 		public final MemoryBlock textBlock; //.text block
@@ -39,9 +43,13 @@ public class VitaElfExtension extends ElfExtension {
 		public final MessageLog logger;
 		public final Program program;		//Result of ElfLoadHelper.getProgram();
 		public final Memory memory;			//Result of program.getMemory();
+		public final ProgramContext progContext;
 		
 		public final TypeDatabase typeDb;
 		public final NIDDatabase nidDb;
+		
+		public final RegisterValue TModeForThumb;
+		public final RegisterValue TModeForARM;
 		
 		public String moduleName; //Added by SceModuleInfo in its constructor
 		
@@ -67,6 +75,11 @@ public class VitaElfExtension extends ElfExtension {
 			
 			this.typeDb = new TypeDatabase(this);
 			this.nidDb = new NIDDatabase(this);
+			this.progContext = program.getProgramContext();
+			
+			Register TMode = this.progContext.getRegister("TMode");
+			TModeForThumb = new RegisterValue(TMode, BigInteger.ONE);
+			TModeForARM = new RegisterValue(TMode, BigInteger.ZERO);
 		}
 	}
 	
