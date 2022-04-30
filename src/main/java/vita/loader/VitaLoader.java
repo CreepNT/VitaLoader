@@ -39,6 +39,8 @@ import vita.elf.VitaElfProgramBuilder;
 
 /**
  * Reimplements the ElfLoader methods to use Vita-specific types (also inherited from ElfXXX objects).
+ * 
+ * TODO: make this VitaElfLoader
  */
 public class VitaLoader extends ElfLoader {
 	//Language for PS Vita ELFs : ARMv7 Little-endian w/ default compiler
@@ -54,26 +56,13 @@ public class VitaLoader extends ElfLoader {
 		VitaElfHeader header = null;
 		try {
 			header = getElfHeader(provider);
-		} catch (ElfException e) {
+		} catch (ElfException e) { //VitaElfHeader will throw if e_type or e_machine are bad
 			return Collections.emptyList();
 		}
 		
-		//Verify e_machine and e_type are expected values
-		short type = header.e_type();
-		short machine = header.e_machine();
-		
-		if (machine != VitaElfHeader.ARM_MACHINE_TYPE)
-			return Collections.emptyList();
-		
-		switch (type) {
-		case VitaElfHeader.ET_SCE_EXEC:
-		case VitaElfHeader.ET_SCE_RELEXEC:
-			List<LoadSpec> loadSpecs = new ArrayList<>();
-			loadSpecs.add(new LoadSpec(this, header.findImageBase(), LANGUAGE, true));
-			return loadSpecs;
-		default:
-			return Collections.emptyList();
-		}
+		List<LoadSpec> loadSpecs = new ArrayList<>();
+		loadSpecs.add(new LoadSpec(this, header.findImageBase(), LANGUAGE, true));
+		return loadSpecs;
 	}
 
 	@Override
