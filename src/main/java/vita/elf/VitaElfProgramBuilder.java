@@ -19,6 +19,7 @@ import ghidra.program.model.reloc.RelocationTable;
 import ghidra.util.StringUtilities;
 import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
+import vita.elf.VitaElfHeader.ExecutableInfo;
 import vita.loader.VitaLoader;
 import ghidra.app.util.opinion.DefaultElfProgramBuilder;
 
@@ -47,6 +48,8 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 	//Probably because DefaultElfProgramBuilder calls top-level through invoke() - it works so I'm not fixing it
 	@Override
 	protected void load(TaskMonitor monitor) throws IOException, CancelledException {
+		
+		
 		//Parse Vita-specific options
 		this.useExternalTypes = getBooleanOption(VitaLoader.USE_CUSTOM_TYPES_DATABASE_OPTNAME);
 		this.useExternalNIDs = getBooleanOption(VitaLoader.USE_CUSTOM_NIDS_DATABASE_OPTNAME);
@@ -58,6 +61,8 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 		elf.parse();
 		monitor.setCancelEnabled(true);
 
+		//TODO parse the custom sections
+		
 		int id = program.startTransaction("Load ELF program");
 		boolean success = false;
 		try {
@@ -155,22 +160,14 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 		//Vita doesn't support prelinking, pointless to print info about it
 		//props.setBoolean(ElfLoader.ELF_PRELINKED_PROPERTY, elf.isPreLinked());
 
-		String elfFileType;
-		boolean isRelocatable = false;
-		switch (elf.e_type()) {
-		case VitaElfHeader.ET_SCE_EXEC:
-			elfFileType = VitaElfHeader.ET_SCE_EXEC_NAME;
-			break;
-		case VitaElfHeader.ET_SCE_RELEXEC:
-			elfFileType = VitaElfHeader.ET_SCE_RELEXEC_NAME;
-			isRelocatable = true;
-			break;
-		default: //Should never happen, as loader will only accept ET_SCE_EXEC/ET_SCE_RELEXEC ELFs, but who knows...
-			elfFileType = String.format("Unknown (0x%04X)", elf.e_type());
-			break;
+		ExecutableInfo elfInfo = VitaElfHeader.EXECUTABLE_TYPES.get(elf.e_type());
+		if (elfInfo == null) { //wtf?
+			props.setString(ElfLoader.ELF_FILE_TYPE_PROPERTY, String.format("Unknown! (0x%04X)", elf.e_type()));
+			props.setBoolean(RelocationTable.RELOCATABLE_PROP_NAME, false);
+		} else {
+			props.setString(ElfLoader.ELF_FILE_TYPE_PROPERTY, elfInfo.name + "(" + elfInfo.typeName + ")");
+			props.setBoolean(RelocationTable.RELOCATABLE_PROP_NAME, elfInfo.relocatable);
 		}
-		props.setString(ElfLoader.ELF_FILE_TYPE_PROPERTY, elfFileType);
-		props.setBoolean(RelocationTable.RELOCATABLE_PROP_NAME, isRelocatable);
 
 		//May be useless
 		int fileIndex = 0;
@@ -186,6 +183,7 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 		}
 		
 		//Vita ELFs should never have dynamic tables
+		//We could parse imports here however :D
 		/*
 		int libraryIndex = 0;
 		ElfDynamicTable dynamicTable = elf.getDynamicTable();
