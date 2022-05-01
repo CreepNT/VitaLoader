@@ -6,8 +6,10 @@ import ghidra.app.util.bin.BinaryReader;
 import ghidra.program.model.data.DataType;
 import ghidra.app.util.bin.StructConverter;
 import ghidra.program.model.address.Address;
+import ghidra.program.model.address.AddressOutOfBoundsException;
 import ghidra.app.util.bin.StructConverterUtil;
 import ghidra.program.model.data.StructureDataType;
+import ghidra.program.model.listing.ContextChangeException;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.data.Pointer32DataType;
 import ghidra.util.exception.DuplicateNameException;
@@ -34,13 +36,17 @@ public class SceProcessmgrProcFuncExport implements StructConverter {
 
 	private ProcessingContext _ctx;
 	private Address _selfAddress;
+	private final boolean isThumb;
 	
 	public SceProcessmgrProcFuncExport(ProcessingContext ctx, Address tableAddress) throws IOException, MemoryAccessException {
 		BinaryReader reader = TypeHelper.getByteArrayBackedBinaryReader(ctx, tableAddress, SIZE);
 		unk0 = reader.readNextUnsignedInt();
 		long pNamePart1 = reader.readNextUnsignedInt();
 		long pNamePart2 = reader.readNextUnsignedInt();
-		pFunc = reader.readNextUnsignedInt() & ~1L; //Clear LSB because Ghidra expects functions to be 2-byte aligned
+		
+		long funcPtr = reader.readNextUnsignedInt();
+		isThumb = (funcPtr & 1L) != 0;
+		pFunc = funcPtr & ~1L; //Clear LSB because Ghidra expects functions to be 2-byte aligned
 		pUnk10 = reader.readNextUnsignedInt();
 		/*unk14 = reader.readNextUnsignedInt();
 		unk18 = reader.readNextUnsignedInt();
@@ -95,9 +101,15 @@ public class SceProcessmgrProcFuncExport implements StructConverter {
 		_ctx.api.createLabel(_selfAddress, namePart1 + namePart2 + "_table", true);
 	}
 	
-	public void process() {
+	public void process() throws ContextChangeException, AddressOutOfBoundsException {
 		Address funcAddr = _ctx.textStart.getNewAddress(pFunc);
 		Function func = _ctx.api.createFunction(funcAddr, namePart1 + namePart2);
-	}
+		func.setComment(String.format("NONAME variable export 0x%X: %s%s", 0x8CE938B1, namePart1, namePart2));
 
+		if (isThumb) {
+			_ctx.progContext.setRegisterValue(funcAddr, funcAddr.add(2), _ctx.TModeForThumb);
+		} else {
+			_ctx.progContext.setRegisterValue(funcAddr, funcAddr.add(4), _ctx.TModeForARM);
+		}
+	}
 }
