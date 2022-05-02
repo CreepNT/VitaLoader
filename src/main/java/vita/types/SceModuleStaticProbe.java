@@ -18,9 +18,7 @@ import ghidra.program.model.mem.MemoryAccessException;
 import vita.misc.TypeHelper;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
-//Bad name
-//TODO fixme
-public class SceProcessmgrProcFuncExport implements StructConverter {
+public class SceModuleStaticProbe implements StructConverter {
 	public long unk0;
 	public String namePart1 = "";
 	public String namePart2 = "";
@@ -32,13 +30,13 @@ public class SceProcessmgrProcFuncExport implements StructConverter {
 	public long unk20;
 	public long unk24;
 	public static final int SIZE = 0x14; //In 0.931, size is 0x10 -- in 3.65, it *could* be 0x28, but seems to be 0x14 - all fields past that are zeroes
-	public static final String NAME = "SceProcessmgrProcFuncExport";
+	public static final String NAME = "SceModuleStaticProbe";
 
 	private ProcessingContext _ctx;
 	private Address _selfAddress;
 	private final boolean isThumb;
 	
-	public SceProcessmgrProcFuncExport(ProcessingContext ctx, Address tableAddress) throws IOException, MemoryAccessException {
+	public SceModuleStaticProbe(ProcessingContext ctx, Address tableAddress) throws IOException, MemoryAccessException {
 		BinaryReader reader = TypeHelper.getByteArrayBackedBinaryReader(ctx, tableAddress, SIZE);
 		unk0 = reader.readNextUnsignedInt();
 		long pNamePart1 = reader.readNextUnsignedInt();

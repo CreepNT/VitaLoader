@@ -57,16 +57,15 @@ public class SceModuleExports implements StructConverter {
 	
 	private static final long PROCESS_PARAM_NID 		= 0x70FBA1E7L; //SceProcessParam
 	
-	//bad names, will fix another day
-	private static final long PROCESSMGR_PROC_FUNC_EXPORT_DESCRIPTOR_NID = 0x9318D9DDL; //0x8 bytes structure that describes the size of array
-	private static final long PROCESSMGR_PROC_FUNC_EXPORT_ARRAY_NID = 0x8CE938B1L; //Array of pointers to structures about ___proc__XXX functions exported by SceProcessmgr
+	private static final long STATIC_PROBES_INFO_NID = 0x9318D9DDL;
+	private static final long STATIC_PROBES_ARRAY_NID = 0x8CE938B1L;
 	
 	private ProcessingContext _ctx; //Processing context
 	private Address _selfAddress; 	//Address we're located at
 	private String _libraryName; 	//Name of the library those exports belong to
 	
-	private int _ProcessmgrProcFuncExportsArray_size = 0; //Number of entries in the array about ___proc__XXX functions
-	private Address _ProcessmgrProcFuncExportsArray_address = null; //address of the array
+	private int numStaticProbes = 0; //Number of entries in the static probes array
+	private Address staticProbesAddr = null; //address of the array
 	
 	
 	private Namespace _libraryNS;
@@ -207,6 +206,9 @@ public class SceModuleExports implements StructConverter {
 			for (int i = 0; i < num_vars; i++, _ctx.monitor.incrementProgress(1)) {
 				processVariable(Integer.toUnsignedLong(varNidTable.get(i)), Integer.toUnsignedLong(varEntryTable.get(i)));
 			}
+			
+			//Process static probes
+			processStaticProbes();
 		}
 		_ctx.monitor.setShowProgressValue(false);
 	}
@@ -279,19 +281,19 @@ public class SceModuleExports implements StructConverter {
 				_ctx.api.createLabel(varAddr, MODULE_SDK_VERSION_VARIABLE_NAME, true, SourceType.ANALYSIS);
 			} else if (varNID == PROCESS_PARAM_NID) {
 				new SceProcessParam(_ctx, varAddr).apply();
-			} else if (varNID == PROCESSMGR_PROC_FUNC_EXPORT_DESCRIPTOR_NID) {
-				System.out.println("Processing DESCRIPTOR");
+			} else if (varNID == STATIC_PROBES_INFO_NID) {
+			    _ctx.api.createData(varAddr, TypeHelper.makeArray(TypeHelper.u32, 2));
+				_ctx.api.createLabel(varAddr, "static_probes_info", true, SourceType.ANALYSIS);
 				
-				_ctx.api.createData(varAddr, TypeHelper.makeArray(TypeHelper.u32, 2));
-				_ctx.api.createLabel(varAddr, "0x9318D9DD_export", true, SourceType.ANALYSIS);
-				
-				Address numFuncsAddr = varAddr.add(0x4);
-				BinaryReader br = TypeHelper.getByteArrayBackedBinaryReader(_ctx, numFuncsAddr, 0x4);
-				_ProcessmgrProcFuncExportsArray_size = (int)br.readNextUnsignedInt();
-				markupProcFuncExportsIfPossible();
-			} else if (varNID == PROCESSMGR_PROC_FUNC_EXPORT_ARRAY_NID) {
-				_ProcessmgrProcFuncExportsArray_address = varAddr;
-				markupProcFuncExportsIfPossible();
+				BinaryReader br = TypeHelper.getByteArrayBackedBinaryReader(_ctx, varAddr, 0x8);
+				long piVersion = br.readNextUnsignedInt();
+				if (piVersion != 1L) {
+					_ctx.logger.appendMsg(String.format("WARNING: static probes info version mismatch! (%d != %d)", piVersion, 1));
+					return;
+				}
+				numStaticProbes = (int)br.readNextUnsignedInt();
+			} else if (varNID == STATIC_PROBES_ARRAY_NID) {
+				staticProbesAddr = varAddr;
 			} else {
 				_ctx.logger.appendMsg(String.format("!!!Unknown NONAME variable with NID 0x%08X", varNID));
 			}
@@ -301,28 +303,52 @@ public class SceModuleExports implements StructConverter {
 /*
  * Gadgets
  */
-	private void markupProcFuncExportsIfPossible() throws Exception {
-		//we have to store it in ourselves because we don't know the order in which they'll arrive
-		if (_ProcessmgrProcFuncExportsArray_size == 0 || _ProcessmgrProcFuncExportsArray_address == null) {
+	private void processStaticProbes() throws Exception {
+		if (numStaticProbes == 0 && staticProbesAddr == null) { //No static probes - everything is fine
 			return;
 		}
 		
-		final Address arrAddr = _ProcessmgrProcFuncExportsArray_address;
-		final int arrSize = _ProcessmgrProcFuncExportsArray_size;
-		
-		_ctx.api.createData(arrAddr, TypeHelper.makeArray(new Pointer32DataType(SceProcessmgrProcFuncExport.getDataType()), arrSize));
-		_ctx.api.createLabel(arrAddr, "0x8CE938B1_export", true, SourceType.ANALYSIS);
-		
-		for (int i = 0; i < arrSize; i++) {
-			Address ptrAddr = arrAddr.add(i * 4);
-			BinaryReader ptrReader = TypeHelper.getByteArrayBackedBinaryReader(_ctx, ptrAddr, 4);
-			long ptr = ptrReader.readNextUnsignedInt();
-			
-			Address structAddr = _ctx.textStart.getNewAddress(ptr);
-			SceProcessmgrProcFuncExport table = new SceProcessmgrProcFuncExport(_ctx, structAddr);
-			table.apply();
-			table.process();
+		if (numStaticProbes != 0 && staticProbesAddr == null) {
+			_ctx.logger.appendMsg("WARNING: module exports static probes info, but no static probes!");
+			return;
 		}
+		
+		if (numStaticProbes == 0 && staticProbesAddr != null) {
+			_ctx.logger.appendMsg("WARNING: module exports static probes, but no static probes info!");
+			return;
+		}
+		
+		_ctx.api.createData(staticProbesAddr, TypeHelper.makeArray(new Pointer32DataType(SceModuleStaticProbe.getDataType()), numStaticProbes));
+		_ctx.api.createLabel(staticProbesAddr, "static_probes", true, SourceType.ANALYSIS);
+		
+		
+		BinaryReader probesArrayReader = TypeHelper.getByteArrayBackedBinaryReader(_ctx, staticProbesAddr, numStaticProbes * 4 + 4); //+4 for the last (NULL) entry
+		int numProbesCounted = 0;
+		for (int i = 0; i <= numStaticProbes; i++) {
+			long ptr = probesArrayReader.readNextInt();
+			if (ptr != 0L) {
+				numProbesCounted += 1;
+			} else {
+				break;
+			}
+		}
+		
+		//Verify that size matches info.size
+		if (numProbesCounted != numStaticProbes) {
+			_ctx.logger.appendMsg(String.format("WARNING: mismatched static probes count (info->%d != %d)", numStaticProbes, numProbesCounted));
+			return;
+		}
+		
+		probesArrayReader.setPointerIndex(0);
+		for (int i = 0; i < numStaticProbes; i++) {
+			long ptr = probesArrayReader.readNextUnsignedInt();
+			Address probeAddr = _ctx.textStart.getNewAddress(ptr);
+			SceModuleStaticProbe probe = new SceModuleStaticProbe(_ctx, probeAddr);
+			probe.apply();
+			probe.process();
+		}
+		
+		_ctx.logger.appendMsg(String.format("Module exports %d static probes.", numStaticProbes));
 		
 	}
 	
