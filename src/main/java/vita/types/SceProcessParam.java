@@ -6,22 +6,20 @@ import ghidra.app.util.bin.BinaryReader;
 import ghidra.program.model.data.DataType;
 import ghidra.app.util.bin.StructConverter;
 import ghidra.program.model.address.Address;
-import ghidra.app.util.bin.StructConverterUtil;
 import ghidra.program.model.data.StructureDataType;
-import ghidra.program.model.mem.MemoryAccessException;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.data.Pointer32DataType;
 import ghidra.program.model.data.PointerDataType;
 import ghidra.program.model.data.StringDataType;
-import ghidra.util.exception.DuplicateNameException;
 import vita.elf.VitaElfExtension.ProcessingContext;
 import vita.misc.TypeHelper;
+import vita.misc.Utils;
 
 public class SceProcessParam implements StructConverter {
 	public long size;
 	public long magic;
 	public long version;
-	public long fw_version;
+	public long sdkVersion;
 	public long sceUserMainThreadName;
 	public long sceUserMainThreadPriority;
 	public long sceUserMainThreadStackSize;
@@ -30,20 +28,23 @@ public class SceProcessParam implements StructConverter {
 	public long sceKernelPreloadModuleInhibit;
 	public long sceUserMainThreadCpuAffinityMask;
 	public long __sce_libcparam;
-	public long unk;
-	public static final int SIZE = 0x34;
-	public static final String NAME = "SceProcessParam";
+	
+	private static final long UNK30_INITIAL_FIRMWARE = 0x00990000L; //May be smaller
+	public long unk30 = 0; //Not present in 0.945
 
+	
+	public static final String STRUCTURE_NAME = "SceProcessParam";
+	
 	private ProcessingContext _ctx;
 	private Address _selfAddress;
 	
-	public SceProcessParam(ProcessingContext ctx, Address processParamAddr) throws IOException, MemoryAccessException {
-		BinaryReader reader = TypeHelper.getByteArrayBackedBinaryReader(ctx, processParamAddr, SIZE);
+	public SceProcessParam(ProcessingContext ctx, Address processParamAddr) throws IOException {
+		BinaryReader reader = TypeHelper.getMemoryBackedBinaryReader(_ctx.memory, processParamAddr);
 		
 		size = reader.readNextUnsignedInt();
 		magic = reader.readNextUnsignedInt();
 		version = reader.readNextUnsignedInt();
-		fw_version = reader.readNextUnsignedInt();
+		sdkVersion = reader.readNextUnsignedInt();
 		sceUserMainThreadName = reader.readNextUnsignedInt();
 		sceUserMainThreadPriority = reader.readNextUnsignedInt();
 		sceUserMainThreadStackSize = reader.readNextUnsignedInt();
@@ -52,19 +53,21 @@ public class SceProcessParam implements StructConverter {
 		sceKernelPreloadModuleInhibit = reader.readNextUnsignedInt();
 		sceUserMainThreadCpuAffinityMask = reader.readNextUnsignedInt();
 		__sce_libcparam = reader.readNextUnsignedInt();
-		unk = reader.readNextUnsignedInt();
+		
+		//We're gonna cheat a bit - since we now read the SDK version
+		//set it directly to ensure that the following check is precise
+		Utils.setModuleSDKVersion(sdkVersion);
+		
+		if (Utils.getModuleSDKVersion() >= UNK30_INITIAL_FIRMWARE) {
+			unk30 = reader.readNextUnsignedInt();
+		}
 		
 		_ctx = ctx;
 		_selfAddress = processParamAddr;
 	}
-
-	@Override
-	public DataType toDataType() throws DuplicateNameException, IOException {
-		return StructConverterUtil.toDataType(this);
-	}
 	
-	public void apply() throws Exception {
-		StructureDataType dt = TypeHelper.createAndGetStructureDataType(NAME);
+	public static DataType getDataType() {
+		StructureDataType dt = TypeHelper.createAndGetStructureDataType(STRUCTURE_NAME);
 		dt.add(TypeHelper.u32, "size", "Size of this structure");
 		dt.add(STRING, 4, "magic", "Structure magic - 'PSP2'");
 		dt.add(TypeHelper.u32, "version", "Version of this structure");
@@ -77,14 +80,25 @@ public class SceProcessParam implements StructConverter {
 		dt.add(new PointerDataType(TypeHelper.u32), "pKernelPreloadModuleInhibit", "Pointer to module preload inibition variable");
 		dt.add(new PointerDataType(TypeHelper.u32), "pUserMainThreadCpuAffinityMask", "Pointer to main thread CPU affinity mask");
 		dt.add(Pointer32DataType.dataType, "pLibcParam", "Pointer to SceLibc parameters");
-		dt.add(TypeHelper.u32, "unk30", null); //Field not present in 0.945
 		
-		if (dt.getLength() != SIZE)
-			System.err.println("Unexpected " + NAME + " data type size (" + dt.getLength() + " != expected " + SIZE + " !)");
+		if (Utils.getModuleSDKVersion() >= UNK30_INITIAL_FIRMWARE) {
+			dt.add(TypeHelper.u32, "unk30", null);
+		}
 		
+		return dt;
+
+	}
+
+	@Override
+	public DataType toDataType() {
+		return SceProcessParam.getDataType();
+	}
+	
+	public void apply() throws Exception {
+		DataType dt = this.toDataType();
 		_ctx.api.clearListing(_selfAddress, _selfAddress.add(dt.getLength()));
 		_ctx.api.createData(_selfAddress, dt);
-		_ctx.api.createLabel(_selfAddress, _ctx.moduleName + "_" + dt.getName(), true);
+		_ctx.api.createLabel(_selfAddress, dt.getName(), true);
 		
 		
 		markup_string_if_present(this.sceUserMainThreadName, "sceUserMainThreadName");

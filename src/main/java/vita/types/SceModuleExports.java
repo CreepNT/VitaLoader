@@ -7,7 +7,6 @@ import java.nio.IntBuffer;
 import java.util.Map;
 
 
-import ghidra.util.task.TaskMonitor;
 import ghidra.app.util.bin.BinaryReader;
 import ghidra.program.model.data.DataType;
 import ghidra.app.util.bin.StructConverter;
@@ -23,6 +22,8 @@ import ghidra.program.model.data.Pointer32DataType;
 import ghidra.util.exception.DuplicateNameException;
 
 import vita.misc.TypeHelper;
+import vita.misc.Utils;
+import vita.types.SceModuleThreadParameter.ModuleThreadParameterType;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
 public class SceModuleExports implements StructConverter {
@@ -38,7 +39,7 @@ public class SceModuleExports implements StructConverter {
 	public long nid_table;		//Contains the function NIDs followed by the variable NIDs
 	public long entry_table;	//Contains the function entrypoints followed by pointers(?) to variables
 	public static final int SIZE = 0x20;
-	public static final String NAME = "SceModuleExports";
+	public static final String STRUCTURE_NAME = "SceModuleExports";
 	
 	private static final String MODULE_START_FUNC_NAME 	= "module_start";
 	private static final String MODULE_STOP_FUNC_NAME 	= "module_stop";
@@ -59,6 +60,10 @@ public class SceModuleExports implements StructConverter {
 	
 	private static final long STATIC_PROBES_INFO_NID = 0x9318D9DDL;
 	private static final long STATIC_PROBES_ARRAY_NID = 0x8CE938B1L;
+	
+	//SceModuleThreadParameter
+	private static final long MODULE_START_THREAD_PARAMETER_NID = 0x1A9822A4L;
+	private static final long MODULE_STOP_THREAD_PARAMETER_NID = 0xD20886EBL;
 	
 	private ProcessingContext _ctx; //Processing context
 	private Address _selfAddress; 	//Address we're located at
@@ -130,7 +135,7 @@ public class SceModuleExports implements StructConverter {
 	 */
 	public void apply() throws Exception {
 		//Create structure object
-		StructureDataType dt = TypeHelper.createAndGetStructureDataType(NAME);
+		StructureDataType dt = TypeHelper.createAndGetStructureDataType(STRUCTURE_NAME);
 		dt.add(WORD, "size", "Size of this structure");
 		dt.add(WORD, "version", null);
 		dt.add(WORD, "attributes", null);
@@ -143,21 +148,14 @@ public class SceModuleExports implements StructConverter {
 		dt.add(Pointer32DataType.dataType, "pNIDTable", "Pointer to the table of all NIDs exported by this library"); //TODO: make this SceUInt32*
 		dt.add(Pointer32DataType.dataType, "pEntryTable", "Pointer to the table of all functions/variables exported by this library"); //TODO: make this void**
 		
-		if (dt.getLength() != SIZE)
-			System.err.println("Unexpected " + NAME + " data type size (" + dt.getLength() + " != expected " + SIZE + " !)");
 
 		//Cleanup area then apply structure
 		_ctx.api.clearListing(_selfAddress, _selfAddress.add(dt.getLength()));
 		_ctx.api.createData(_selfAddress, dt);
 		
 		//Create library namespace and markup structure
-		if (isNONAMELibrary()) {
-			_libraryNS = _ctx.program.getGlobalNamespace();
-			_ctx.api.createLabel(_selfAddress, "NONAME_SceModuleExports", true, SourceType.ANALYSIS);
-		} else {
-			_libraryNS = _ctx.program.getSymbolTable().createNameSpace(null, _libraryName, SourceType.ANALYSIS);
-			_ctx.api.createLabel(_selfAddress, NAME, _libraryNS, true, SourceType.ANALYSIS);
-		}
+		_libraryNS = _ctx.program.getSymbolTable().createNameSpace(null, _libraryName, SourceType.ANALYSIS);
+		_ctx.api.createLabel(_selfAddress, STRUCTURE_NAME, _libraryNS, true, SourceType.ANALYSIS);
 	}
 	
 	/**
@@ -184,7 +182,7 @@ public class SceModuleExports implements StructConverter {
 			IntBuffer funcNidTable = ByteBuffer.wrap(funcNidTableBytes).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
 			IntBuffer funcEntryTable = ByteBuffer.wrap(funcEntryTableBytes).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
 			
-			prepareMonitorProgressBar(_ctx.monitor, "Processing function exports from " + _libraryName + "...", num_functions);
+			Utils.prepareMonitorProgressBar(_ctx.monitor, "Processing function exports from " + _libraryName + "...", num_functions);
 			for (int i = 0; i < num_functions; i++, _ctx.monitor.incrementProgress(1)) {
 				processFunction(Integer.toUnsignedLong(funcNidTable.get(i)), Integer.toUnsignedLong(funcEntryTable.get(i)));
 			}
@@ -202,7 +200,7 @@ public class SceModuleExports implements StructConverter {
 			IntBuffer varNidTable = ByteBuffer.wrap(varNidTableBytes).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
 			IntBuffer varEntryTable = ByteBuffer.wrap(varEntryTableBytes).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
 		
-			prepareMonitorProgressBar(_ctx.monitor, "Processing variable exports from " + _libraryName + "...", num_vars);
+			Utils.prepareMonitorProgressBar(_ctx.monitor, "Processing variable exports from " + _libraryName + "...", num_vars);
 			for (int i = 0; i < num_vars; i++, _ctx.monitor.incrementProgress(1)) {
 				processVariable(Integer.toUnsignedLong(varNidTable.get(i)), Integer.toUnsignedLong(varEntryTable.get(i)));
 			}
@@ -215,74 +213,89 @@ public class SceModuleExports implements StructConverter {
 	
 	//Private routines used for processing
 	private void processFunction(long functionNid, long functionEntry) throws Exception {
-		boolean isThumb = (functionEntry & 1L) != 0;
-		functionEntry = functionEntry & ~1L; //Clear LSB, because functions have to start at a 2-byte boundary (i.e. ignore Thumb bit)
-		
-		String funcName;
+		String defaultName;
+		String dbName = null;
 		String funcComment;
-		Address funcAddr = _ctx.textBlock.getStart().getNewAddress(functionEntry);
+		Address funcAddr = _ctx.textBlock.getStart().getNewAddress(functionEntry & ~1L); //LSB is always clear for a function
 		
 		if (isNONAMELibrary()) {
+			defaultName = String.format("NONAME_%08X", functionNid);
+			
 			if (NAMELESS_FUNC_EXPORTS.containsKey((int)functionNid)) {
-				funcName = NAMELESS_FUNC_EXPORTS.get((int)functionNid);
+				dbName = NAMELESS_FUNC_EXPORTS.get((int)functionNid);
 			}
 			else {
-				_ctx.logger.appendMsg(String.format("!!!Unknown NONAME function with NID 0x%08X", functionNid));
-				funcName = String.format("NONAME_%08X", functionNid);
+				_ctx.logger.appendMsg(String.format("Module exports unknown NONAME function with NID 0x%08X.", functionNid));
 			}
-			funcComment = String.format("NONAME export: %s", funcName);
+			
+			funcComment = "--- EXPORTED FUNCTION ---\n";
+            funcComment += String.format("Library: NONAME");
+            funcComment += String.format("Function NID: 0x%08X\n");
+            funcComment += String.format("--- NONAME_%08X ---", _libraryName, functionNid);
 		} else {
-			funcName = _ctx.nidDb.getFunctionName(this.library_nid, functionNid);
-			if (funcName == null) { //Not found in database
-				funcName = _libraryName + String.format("_%08X", functionNid);
+			defaultName = String.format("%s_%08X", _libraryName, functionNid);
+			dbName = _ctx.nidDb.getFunctionName(library_nid, functionNid);
+			
+			funcComment  = "--- EXPORTED FUNCTION ---\n";
+			funcComment += String.format("Library: %s (NID 0x%08X)\n", _libraryName, library_nid);
+			funcComment += String.format("Function NID: 0x%08X\n", functionNid);
+			if (isUserImportableLibrary()) {
+				funcComment += "User-importable function\n";
 			}
-			funcComment = String.format("Exporting library : %s (NID 0x%08X)\nFunction NID : 0x%08X\n---   %s_0x%08X   ---", _libraryName, this.library_nid, functionNid, _libraryName, functionNid);
+			funcComment += String.format("---   %s_%08X   ---", _libraryName, functionNid);
 		}
 		
-		//See if a function already exists
+		//See if function already exists
 		Function func = _ctx.api.getFunctionAt(funcAddr);
-		if (func == null) { //No - create one
-			func = _ctx.helper.createOneByteFunction(funcName, funcAddr, true);
-			func.setSignatureSource(SourceType.ANALYSIS);
-		} else { //Function already exists - probably export aliases
-			//Simply add a label and apppend to comment
-			_ctx.api.createLabel(funcAddr, funcName, false, SourceType.ANALYSIS);
-			funcComment = func.getComment() + funcComment;
+		if (func != null) { //Already exists - append comment and add names as secondary labels, and markup TMode
+			func = Utils.createFunction(defaultName, functionEntry, false); //TMode + add default name label
+			if (dbName != null) {
+				_ctx.api.createLabel(funcAddr, dbName, false, SourceType.ANALYSIS);
+			}
+			func.setComment(func.getComment() + "\n" + funcComment);
+		} else { //Function doesn't exist - create it
+			if (dbName == null) {
+				func = Utils.createFunction(defaultName, functionEntry, true);
+			} else {
+				//Use DB name as primary name, and default name as secondary label
+				func = Utils.createFunction(dbName, functionEntry, true);
+				_ctx.api.createLabel(funcAddr, defaultName, false, SourceType.ANALYSIS);
+			}
+			
+			func.setComment(funcComment);
 		}
-		
-		func.setComment(funcComment);
-		
-		//Markup TMode to give disassembly hint - now analysis will not break anymore!
-		if (isThumb) {
-			_ctx.progContext.setRegisterValue(funcAddr, funcAddr.add(2), _ctx.TModeForThumb);
-		} else {
-			_ctx.progContext.setRegisterValue(funcAddr, funcAddr.add(4), _ctx.TModeForARM);
-		}
-		
-		//Mark as exported
-		//TODO, if possible: sort functions based on library name
-		//_ctx.program.getSymbolTable().addExternalEntryPoint(functionEntryAddr); //is this needed anymore?
+
+		//It doesn't seem possible to sort functions based on library name, so leave as-is
 	}
 
 	private void processVariable(long varNID, long rawVarAddress) throws Exception {
 		Address varAddr = _ctx.textStart.getNewAddress(rawVarAddress);
 		if (!isNONAMELibrary()) {
-			String varName = _ctx.nidDb.getVariableName(this.library_nid, varNID);
-			if (varName == null) {
-				varName = String.format("%s_%08X", _libraryName, varNID);
-			}
+			String defaultName = String.format("%s_%08X", _libraryName, varNID);
+			String dbName = _ctx.nidDb.getVariableName(library_nid, rawVarAddress);
 			
-			_ctx.api.createLabel(varAddr, varName, _libraryNS, true, SourceType.ANALYSIS);
-		} else {
+			if (dbName != null) { //Use database name as primary label, then default as secondary
+				_ctx.api.createLabel(varAddr, dbName, true, SourceType.ANALYSIS);
+				_ctx.api.createLabel(varAddr, defaultName, false, SourceType.ANALYSIS);
+			} else {
+				_ctx.api.createLabel(varAddr, defaultName, true, SourceType.ANALYSIS);
+			}	
+		} else { //NONAME library
+			//TODO make this cleaner
+			
 			if (varNID == MODULE_INFO_NID) { //Parsing of ELFs begins by finding and parsing the SceModuleInfo, so nothing to do
 				return;
 			} else if (varNID == MODULE_SDK_VERSION_NID) {
 				_ctx.api.createData(varAddr, UnsignedIntegerDataType.dataType); //TODO SceUInt32
 				_ctx.api.createLabel(varAddr, MODULE_SDK_VERSION_VARIABLE_NAME, true, SourceType.ANALYSIS);
+				_ctx.api.setPlateComment(varAddr, "Version of the SDK the static library used to compile this module comes from");
 			} else if (varNID == PROCESS_PARAM_NID) {
+				
 				new SceProcessParam(_ctx, varAddr).apply();
+				
 			} else if (varNID == STATIC_PROBES_INFO_NID) {
-			    _ctx.api.createData(varAddr, TypeHelper.makeArray(TypeHelper.u32, 2));
+				
+			    _ctx.api.createData(varAddr, TypeHelper.makeArray(TypeHelper.u32, 2)); //TODO proper structure
 				_ctx.api.createLabel(varAddr, "static_probes_info", true, SourceType.ANALYSIS);
 				
 				BinaryReader br = TypeHelper.getByteArrayBackedBinaryReader(_ctx, varAddr, 0x8);
@@ -292,10 +305,21 @@ public class SceModuleExports implements StructConverter {
 					return;
 				}
 				numStaticProbes = (int)br.readNextUnsignedInt();
+				
 			} else if (varNID == STATIC_PROBES_ARRAY_NID) {
+				
 				staticProbesAddr = varAddr;
+				
+			} else if (varNID == MODULE_START_THREAD_PARAMETER_NID) {
+				
+				new SceModuleThreadParameter(_ctx, varAddr, ModuleThreadParameterType.MODULE_START_PARAMETER).apply();
+				
+			} else if (varNID == MODULE_STOP_THREAD_PARAMETER_NID) {
+				
+				new SceModuleThreadParameter(_ctx, varAddr, ModuleThreadParameterType.MODULE_STOP_PARAMETER).apply();
+				
 			} else {
-				_ctx.logger.appendMsg(String.format("!!!Unknown NONAME variable with NID 0x%08X", varNID));
+				_ctx.logger.appendMsg(String.format("Module exports unknown NONAME variable with NID 0x%08X.", varNID));
 			}
 		}
 	}
@@ -352,11 +376,8 @@ public class SceModuleExports implements StructConverter {
 		
 	}
 	
-	private static void prepareMonitorProgressBar(TaskMonitor monitor, String msg, long max) {
-		monitor.setShowProgressValue(false);
-		monitor.setMessage(msg);
-		monitor.setMaximum(max);
-		monitor.setShowProgressValue(true);
+	private boolean isUserImportableLibrary() {
+		return ((attributes & 0x4000) != 0);
 	}
 	
 	private boolean isNONAMELibrary() {

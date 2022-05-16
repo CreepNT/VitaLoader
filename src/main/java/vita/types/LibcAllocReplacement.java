@@ -22,6 +22,7 @@ import ghidra.program.model.data.ParameterDefinitionImpl;
 import ghidra.program.model.data.FunctionDefinitionDataType;
 
 import vita.misc.TypeHelper;
+import vita.misc.Utils;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
 public class LibcAllocReplacement implements StructConverter {
@@ -166,13 +167,13 @@ public class LibcAllocReplacement implements StructConverter {
 		return r;
 	}
 	
-	private void __markup_if_present(long address, String name, FunctionDefinitionDataType function) throws Exception {
+	private void __markup_if_present(long address, String name, FunctionDefinitionDataType funcType) throws Exception {
 		if (address == 0L)
 			return;
 		
-		ParameterDefinition[] fArgs = function.getArguments();
-		Function f = _ctx.helper.createOneByteFunction(name, _ctx.textStart.getNewAddress(address), false);
-		f.setReturnType(function.getReturnType(), SourceType.ANALYSIS);
+		ParameterDefinition[] fArgs = funcType.getArguments();
+		Function f = Utils.createFunction(name, address, false);
+		f.setReturnType(funcType.getReturnType(), SourceType.ANALYSIS);
 		if (fArgs.length > 0) {
 			Variable[] vars = new Variable[fArgs.length];
 			for (int i = 0; i < fArgs.length; i++) {

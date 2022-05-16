@@ -10,18 +10,16 @@ import ghidra.program.model.mem.MemoryBlock;
 import ghidra.program.flatapi.FlatProgramAPI;
 import ghidra.util.exception.CancelledException;
 
-import java.math.BigInteger;
 
 import ghidra.app.util.bin.format.elf.ElfHeader;
 import ghidra.program.model.data.DataTypeManager;
-import ghidra.program.model.lang.Register;
-import ghidra.program.model.lang.RegisterValue;
 import ghidra.app.util.bin.format.elf.ElfLoadHelper;
 import ghidra.app.util.bin.format.elf.extend.ElfExtension;
 
 import vita.types.SceModuleInfo;
 
 import vita.misc.TypeHelper;
+import vita.misc.Utils;
 import vita.misc.NIDDatabase;
 import vita.misc.TypeDatabase;
 
@@ -48,10 +46,9 @@ public class VitaElfExtension extends ElfExtension {
 		public final TypeDatabase typeDb;
 		public final NIDDatabase nidDb;
 		
-		public final RegisterValue TModeForThumb;
-		public final RegisterValue TModeForARM;
-		
 		public String moduleName; //Added by SceModuleInfo in its constructor
+		public long SDKVersion = 0;
+		
 		
 		public ProcessingContext (TaskMonitor monitor, VitaElfProgramBuilder helper){
 			this.moduleName = "Paradox ERR"; //Placeholder to avoid NullPointerException, even though it should never happen
@@ -77,9 +74,7 @@ public class VitaElfExtension extends ElfExtension {
 			this.nidDb = new NIDDatabase(this);
 			this.progContext = program.getProgramContext();
 			
-			Register TMode = this.progContext.getRegister("TMode");
-			TModeForThumb = new RegisterValue(TMode, BigInteger.ONE);
-			TModeForARM = new RegisterValue(TMode, BigInteger.ZERO);
+
 		}
 	}
 	
@@ -106,6 +101,8 @@ public class VitaElfExtension extends ElfExtension {
 		VitaElfProgramBuilder programBuilder = (VitaElfProgramBuilder)helper;
 		VitaElfHeader elf = (VitaElfHeader)helper.getElfHeader();
 		ProcessingContext ctx = new ProcessingContext(monitor, programBuilder);
+		
+		Utils.initialize(ctx);
 		
 		//Add default SCE datatypes
 		ctx.typeDb.addSceTypes(TypeHelper.SCE_TYPES_CATPATH);
