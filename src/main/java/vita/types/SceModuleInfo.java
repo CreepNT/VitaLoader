@@ -11,7 +11,8 @@ import ghidra.program.model.data.StructureDataType;
 import ghidra.program.model.data.Pointer32DataType;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.program.model.mem.MemoryAccessException;
-
+import ghidra.program.model.symbol.Namespace;
+import ghidra.program.model.symbol.SourceType;
 import vita.misc.TypeHelper;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
@@ -44,7 +45,7 @@ public class SceModuleInfo implements StructConverter {
 	public SceModuleInfo(ProcessingContext ctx, Address moduleInfoAddress) throws IOException, MemoryAccessException {
 		BinaryReader reader = TypeHelper.getByteArrayBackedBinaryReader(ctx, moduleInfoAddress, SIZE);
 		attributes = reader.readNextShort();
-		version = reader.readNextShort();
+		version = reader.readNextShort(); //TODO: depending on this, set _ctx.SDKVersion
 		name = reader.readNextAsciiString(27);
 		type = reader.readNextByte();
 		gp_value = reader.readNextUnsignedInt();
@@ -60,6 +61,8 @@ public class SceModuleInfo implements StructConverter {
 		module_stop = reader.readNextUnsignedInt();
 		exidx_top = reader.readNextUnsignedInt();
 		exidx_end = reader.readNextUnsignedInt();
+		
+		//Not present in 0.940 (-0.990?)
 		extab_top = reader.readNextUnsignedInt();
 		extab_end = reader.readNextUnsignedInt();
 		
@@ -75,33 +78,31 @@ public class SceModuleInfo implements StructConverter {
 	
 	public void apply() throws Exception {
 		StructureDataType dt = TypeHelper.createAndGetStructureDataType(NAME);
-		dt.add(WORD, "attributes", null);
-		dt.add(WORD, "version", null);
+		dt.add(WORD, "modattr", "Module attributes"); //TODO make this an enum
+		dt.add(TypeHelper.makeArray(TypeHelper.u8, 2), "modver", "Module version (Major.Minor)");
 		dt.add(STRING, 27, "moduleName", "Name of this module");
-		dt.add(BYTE, "type", null);
+		dt.add(BYTE, "infover", null);
 		dt.add(Pointer32DataType.dataType, "gp_value", "Value for gp register (unused)");
-		dt.add(IBO32, "exportsStart", "Address of exports table start");
-		dt.add(IBO32, "exportsEnd", "Address of exports table end");
-		dt.add(IBO32, "importsTop", "Address of imports table start");
-		dt.add(IBO32, "importsEnd", "Address of imports table end");
-		dt.add(DWORD, "debugFingerprint", "Unique number used for debugging");
-		dt.add(IBO32, "tlsStart", "Address of TLS section start");
-		dt.add(DWORD, "tlsFileSize", "Size of the TLS section in file");
-		dt.add(DWORD, "tlsMemSize", "Size of the TLS section in memory");
-		dt.add(IBO32, "module_start", "Address of the module_start function");
-		dt.add(IBO32, "module_stop", "Address of the module_stop function");
-		dt.add(IBO32, "exidx_top", "ARM EABI-style exception tables");
-		dt.add(IBO32, "exidx_end", null);
-		dt.add(IBO32, "extab_start", null);
-		dt.add(IBO32, "extab_end", null);
+		dt.add(IBO32, "libent_top", "Address of exports table top");
+		dt.add(IBO32, "libent_end", "Address of exports table bottom");
+		dt.add(IBO32, "libstub_top", "Address of imports table top");
+		dt.add(IBO32, "libstub_end", "Address of imports table bottom");
+		dt.add(DWORD, "fingerprint", "Module fingerprint (used for debugging/versioning)");
+		dt.add(IBO32, "tls_start", "Address of TLS section start");
+		dt.add(DWORD, "tls_file_size", "Size of the TLS section in file");
+		dt.add(DWORD, "tls_mem_size", "Size of the TLS section in memory");
+		dt.add(IBO32, "start_entry", "Address of the module_start entrypoint");
+		dt.add(IBO32, "stop_entry", "Address of the module_stop entrypoint");
+		dt.add(IBO32, "exidx_top", "ARM EABI exception index table top");
+		dt.add(IBO32, "exidx_btm", "ARM EABI exception index table bottom");
+		dt.add(IBO32, "extab_start", "ARM EABI exception table top");
+		dt.add(IBO32, "extab_end", "ARM EABI exception table bottom");
 		
-		if (dt.getLength() != SIZE)
-			System.err.println("Unexpected " + NAME + " data type size (" + dt.getLength() + " != expected " + SIZE + " !)");
-		
+		Namespace moduleNS = _ctx.program.getSymbolTable().createNameSpace(null, name, SourceType.ANALYSIS);
 		
 		_ctx.api.clearListing(_selfAddress, _selfAddress.add(dt.getLength()));
 		_ctx.api.createData(_selfAddress, dt);
-		_ctx.api.createLabel(_selfAddress, this.name + "_" + dt.getName(), true);
+		_ctx.api.createLabel(_selfAddress, dt.getName(), moduleNS, true, SourceType.ANALYSIS);
 	}
 	
 	public void process() throws Exception {
@@ -112,7 +113,7 @@ public class SceModuleInfo implements StructConverter {
 		while (!exportsStart.equals(exportsEnd)) {
 			SceModuleExports exportsInfo = new SceModuleExports(_ctx, exportsStart);
 			if (exportsInfo.size != SceModuleExports.SIZE) {
-				_ctx.logger.appendMsg("Unexpected " + SceModuleExports.NAME + " size at address " + 
+				_ctx.logger.appendMsg("Unexpected " + SceModuleExports.STRUCTURE_NAME + " size at address " + 
 						exportsStart + String.format(" (got 0x%X, expected 0x%X)", exportsInfo.size, SceModuleExports.SIZE));
 				break;
 			}
