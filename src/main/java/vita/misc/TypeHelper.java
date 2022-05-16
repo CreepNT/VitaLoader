@@ -10,6 +10,7 @@ import ghidra.app.util.bin.MemoryByteProvider;
 import ghidra.app.util.bin.StructConverter;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.data.ArrayDataType;
+import ghidra.program.model.data.ByteDataType;
 import ghidra.program.model.data.CategoryPath;
 import ghidra.program.model.data.DataType;
 import ghidra.program.model.data.DoubleDataType;
@@ -18,10 +19,9 @@ import ghidra.program.model.data.IntegerDataType;
 import ghidra.program.model.data.LongLongDataType;
 import ghidra.program.model.data.Pointer32DataType;
 import ghidra.program.model.data.ShortDataType;
-import ghidra.program.model.data.SignedCharDataType;
+import ghidra.program.model.data.SignedByteDataType;
 import ghidra.program.model.data.StructureDataType;
 import ghidra.program.model.data.TypedefDataType;
-import ghidra.program.model.data.UnsignedCharDataType;
 import ghidra.program.model.data.UnsignedIntegerDataType;
 import ghidra.program.model.data.UnsignedLongLongDataType;
 import ghidra.program.model.data.UnsignedShortDataType;
@@ -52,8 +52,8 @@ public class TypeHelper {
 	public final static DataType s32 = IntegerDataType.dataType;
 	public final static DataType u16 = UnsignedShortDataType.dataType;
 	public final static DataType s16 = ShortDataType.dataType;
-	public final static DataType u8 = UnsignedCharDataType.dataType;
-	public final static DataType s8 = SignedCharDataType.dataType;
+	public final static DataType u8 = ByteDataType.dataType;
+	public final static DataType s8 = SignedByteDataType.dataType;
 	public final static DataType f32 = FloatDataType.dataType;
 	public final static DataType f64 = DoubleDataType.dataType;
 	public final static DataType size_t = new TypedefDataType(new CategoryPath("/stddef.h"), "size_t", u32);
@@ -73,7 +73,7 @@ public class TypeHelper {
 	 * @param startAddr	Start address in memory block the BinaryReader will cover from
 	 * @param length Length of the buffer the BinaryReader will cover - must not be 0
 	 * @return A BinaryReader that covers a length-bytes long range in block starting from startAddr
-	 * @throws MemoryAccessException if underlying methods throw it
+	 * @throws MemoryAccessException
 	 */
 	public static BinaryReader getByteArrayBackedBinaryReader(ProcessingContext ctx, Address startAddr, int length) 
 			throws MemoryAccessException {
