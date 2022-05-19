@@ -1,10 +1,13 @@
 package vita.types;
 
+import ghidra.app.util.bin.BinaryReader;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.data.DataType;
 import ghidra.program.model.data.StructureDataType;
-import vita.elf.VitaElfExtension.ProcessingContext;
-import vita.misc.TypeHelper;
+
+
+import vita.misc.TypeManager;
+import vita.misc.Utils;
 
 public class SceModuleThreadParameter {
 	public enum ModuleThreadParameterType {
@@ -20,32 +23,9 @@ public class SceModuleThreadParameter {
 	
 	public final static String STRUCTURE_NAME = "SceModuleThreadParameter";
 	
-	private final ProcessingContext _ctx;
-	private final Address _selfAddress;
-	private final ModuleThreadParameterType _parameterType;
-	
-
-	
-	public SceModuleThreadParameter(ProcessingContext ctx, Address structAddr, ModuleThreadParameterType parameterType) {
-		_ctx = ctx;
-		_selfAddress = structAddr;
-		_parameterType = parameterType; 
-	}
-	
-	public static DataType dataType() {
-		StructureDataType dt = TypeHelper.createAndGetStructureDataType(TypeHelper.SCE_TYPES_CATPATH, STRUCTURE_NAME);
-		dt.setDescription("Parameters used for creation of threads that run the module's entrypoints");
-		dt.add(TypeHelper.u32, "numParams", "Number of parameters in this structure (must be 4)");
-		dt.add(TypeHelper.s32, "initPriority", "Initial priority of the entrypoint thread");
-		dt.add(TypeHelper.u32, "stackSize", "Size of the entrypoint thread's stack, in bytes");
-		dt.add(TypeHelper.u32, "attr", "Attributes - always ignored (replaced by 0x80008000)");
-		dt.add(TypeHelper.s32, "cpuAffinityMask", "Affinity mask of the entrypoint thread");
-		return dt;
-	}
-	
-	public void apply() throws Exception {
+	public SceModuleThreadParameter(Address address, ModuleThreadParameterType parameterType) throws Exception {
 		String epName = "";
-		switch (_parameterType) {
+		switch (parameterType) {
 		case MODULE_START_PARAMETER:
 			epName = "module_start";
 			break;
@@ -54,11 +34,31 @@ public class SceModuleThreadParameter {
 			break;
 		}
 		
+		BinaryReader reader = Utils.getMemoryReader(address);
+		numParams = reader.readNextUnsignedInt();
+		initPriority = reader.readNextInt();
+		stackSize = reader.readNextUnsignedInt();
+		attr = reader.readNextUnsignedInt();
+		cpuAffinityMask = reader.readNextInt();
 		
-		DataType dt = SceModuleThreadParameter.dataType();
-		_ctx.api.clearListing(_selfAddress, _selfAddress.add(dt.getLength()));
-		_ctx.api.createData(_selfAddress, dt);
-		_ctx.api.createLabel(_selfAddress, epName + "_thread_parameter", true);
+		Utils.createDataInNamespace(address, Utils.getModuleName(), epName + "_thread_parameter", toDataType());
 	}
-
+	
+	private static StructureDataType DATATYPE = null;	
+	public static DataType toDataType() {
+		if (DATATYPE == null) {
+			final DataType SceInt32 = TypeManager.getDataType("SceInt32");
+			final DataType SceSize = TypeManager.getDataType("SceSize");
+			
+			DATATYPE = new StructureDataType(TypeManager.SCE_TYPES_CATPATH, STRUCTURE_NAME, 0);
+			DATATYPE.setDescription("Parameters used for creation of threads that run the module's entrypoints");
+			DATATYPE.add(SceSize, "numParams", "Number of parameters in this structure (must be 4)");
+			DATATYPE.add(SceInt32, "initPriority", "Initial priority of the entrypoint thread");
+			DATATYPE.add(SceSize, "stackSize", "Size of the entrypoint thread's stack, in bytes");
+			DATATYPE.add(TypeManager.getDataType("SceUInt32"), "attr", "Attributes - always ignored (replaced by 0x80008000)");
+			DATATYPE.add(SceInt32, "cpuAffinityMask", "Affinity mask of the entrypoint thread");
+		}
+		
+		return DATATYPE;
+	}
 }

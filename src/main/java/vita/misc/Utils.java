@@ -2,13 +2,25 @@ package vita.misc;
 
 import java.math.BigInteger;
 
+import ghidra.app.util.bin.BinaryReader;
+import ghidra.app.util.bin.MemoryByteProvider;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressOutOfBoundsException;
+import ghidra.program.model.data.ArrayDataType;
+import ghidra.program.model.data.DataType;
+import ghidra.program.model.data.DataTypeConflictHandler;
 import ghidra.program.model.lang.Register;
 import ghidra.program.model.lang.RegisterValue;
 import ghidra.program.model.listing.ContextChangeException;
+import ghidra.program.model.listing.Data;
 import ghidra.program.model.listing.Function;
+import ghidra.program.model.mem.MemoryAccessException;
+import ghidra.program.model.mem.MemoryBlock;
+import ghidra.program.model.symbol.ExternalLocation;
+import ghidra.program.model.symbol.Namespace;
 import ghidra.program.model.symbol.SourceType;
+import ghidra.util.exception.DuplicateNameException;
+import ghidra.util.exception.InvalidInputException;
 import ghidra.util.task.TaskMonitor;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
@@ -26,6 +38,108 @@ public class Utils {
 		ThumbTMode = new RegisterValue(TMode, BigInteger.ONE);
 	}
 	
+	
+	public static String getModuleName() {
+		return utilsCtx.moduleName;
+	}
+	
+	
+	public static MemoryBlock findBlockForAddress(Address addr) {
+		MemoryBlock[] blocks = utilsCtx.memory.getBlocks();
+		for (MemoryBlock block : blocks) {
+			Address start = block.getStart();
+			Address end = block.getEnd();
+			
+			if ((start.compareTo(addr) <= 0) && (end.compareTo(addr) > 0)) {
+				return block;
+			}
+		}
+		
+		return null;
+	}
+	
+	
+	public static MemoryBlock findBlockForAddress(long addr) {
+		MemoryBlock[] blocks = utilsCtx.memory.getBlocks();
+		for (MemoryBlock block : blocks) {
+			long start = block.getStart().getOffset();
+			long end = block.getEnd().getOffset();
+			
+			if ((start <= addr) && (addr < end)) {
+				return block;
+			}
+		}
+		
+		return null;
+	}
+	
+	public static void getBytes(Address addr, byte[] buffer) throws MemoryAccessException {
+		MemoryBlock mb = findBlockForAddress(addr);
+		if (mb == null) {
+			throw new RuntimeException("Can't find memblock for address " + addr.toString());
+		}
+		mb.getBytes(addr, buffer);
+	}
+	
+	public static Address getProgramAddress(long addr) {
+		Address address = null;
+		MemoryBlock block = findBlockForAddress(addr);
+		if (block != null) {
+			address = block.getStart().getNewAddress(addr);
+		}
+		return address;
+	}
+	
+	
+	
+	
+	public static void registerDataType(DataType dt) {
+		utilsCtx.dtm.addDataType(dt, DataTypeConflictHandler.REPLACE_HANDLER);
+	}
+	
+	public static DataType makeArray(DataType dt, int numElem) {
+		return new ArrayDataType(dt, numElem, dt.getLength());
+	}
+	
+	/**
+	 * Creates a namespace in Global namespace if non-existent, else returns the existing one.
+	 * @param name  Name of the new namespace
+	 * @return New namespace
+	 * @throws DuplicateNameException
+	 * @throws InvalidInputException
+	 */
+	public static Namespace getNamespaceFromName(String name) throws DuplicateNameException, InvalidInputException {
+		Namespace ns = utilsCtx.api.getNamespace(null, name);
+		if (ns == null) { //Create namespace
+			ns = utilsCtx.program.getSymbolTable().createNameSpace(null, name, SourceType.ANALYSIS);
+		}
+
+		return ns;
+	}
+	
+	public static Data createAsciiString(Address stringAddr) throws Exception {
+		return utilsCtx.api.createAsciiString(stringAddr);
+	}
+	
+	public static void createDataInNamespace(Address address, Namespace ns, String name, DataType type) throws Exception {
+		utilsCtx.api.clearListing(address, address.add(type.getLength() - 1));
+		utilsCtx.api.createData(address, type);
+		utilsCtx.api.createLabel(address, name, ns, true, SourceType.ANALYSIS);
+		
+	}
+	
+	public static void createDataInNamespace(Address address, String namespaceName, String name, DataType type) throws Exception {
+		createDataInNamespace(address, getNamespaceFromName(namespaceName), name, type);
+	}
+	
+	public static void appendLogMsg(String message) {
+		utilsCtx.logger.appendMsg(message);
+	}
+	
+	public static BinaryReader getMemoryReader(Address addr) {
+		return new BinaryReader(new MemoryByteProvider(utilsCtx.memory, addr), /* Little-endian */true);
+	}
+	
 	public static long getModuleSDKVersion() {
 		return utilsCtx.SDKVersion;
 	}
@@ -34,11 +148,20 @@ public class Utils {
 		utilsCtx.SDKVersion = version;
 	}
 	
+	public static void setMonitorMessage(TaskMonitor monitor, String msg) {
+		monitor.setShowProgressValue(false);
+		monitor.setMessage(msg);
+	}
+	
 	public static void prepareMonitorProgressBar(TaskMonitor monitor, String msg, long max) {
 		monitor.setShowProgressValue(false);
 		monitor.setMessage(msg);
 		monitor.setMaximum(max);
 		monitor.setShowProgressValue(true);
+	}
+	
+	public static ExternalLocation addExternalFunction(String libraryName, String extLabel) throws InvalidInputException, DuplicateNameException {
+		return utilsCtx.program.getExternalManager().addExtFunction(libraryName, extLabel, null, SourceType.ANALYSIS);
 	}
 	
 	/**
@@ -55,7 +178,7 @@ public class Utils {
 		boolean isThumb = (address & 1L) != 0;
 		address = (address & ~1L); //Clear Thumb bit	
 		
-		Address funcEntry = utilsCtx.textStart.getNewAddress(address);
+		Address funcEntry = Utils.getProgramAddress(address);
 		Function func = utilsCtx.api.getFunctionAt(funcEntry);
 		if (func != null) { //Already exists - just markup TMode, add secondary label and return the function
 			utilsCtx.api.createLabel(funcEntry, name, false, SourceType.ANALYSIS);
@@ -73,7 +196,7 @@ public class Utils {
 		boolean isThumb = (address & 1L) != 0;
 		address = (address & ~1L); //Clear Thumb bit
 		
-		markupTMode(utilsCtx.textStart.getNewAddress(address), isThumb);
+		markupTMode(Utils.getProgramAddress(address), isThumb);
 	}
 	
 	

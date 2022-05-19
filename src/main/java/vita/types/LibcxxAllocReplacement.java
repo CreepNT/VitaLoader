@@ -10,6 +10,8 @@ import ghidra.program.model.data.CategoryPath;
 import ghidra.app.util.bin.StructConverterUtil;
 import ghidra.program.model.data.Pointer32DataType;
 import ghidra.program.model.data.StructureDataType;
+import ghidra.program.model.data.TypedefDataType;
+import ghidra.program.model.data.UnsignedIntegerDataType;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Function.FunctionUpdateType;
 import ghidra.program.model.listing.ParameterImpl;
@@ -20,7 +22,7 @@ import ghidra.program.model.data.ParameterDefinition;
 import ghidra.program.model.data.ParameterDefinitionImpl;
 import ghidra.program.model.data.FunctionDefinitionDataType;
 
-import vita.misc.TypeHelper;
+import vita.misc.TypeManager;
 import vita.misc.Utils;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
@@ -44,7 +46,7 @@ public class LibcxxAllocReplacement implements StructConverter {
 	public static final int SIZE = 0x28;
 	public static final String NAME = "SceLibstdcxxAllocReplacement";
 	
-	private static CategoryPath LIBCXX_REPLACEMENT_CATPATH = new CategoryPath(TypeHelper.SCE_TYPES_CATPATH, "LibcxxAllocReplacement");
+	private static CategoryPath LIBCXX_REPLACEMENT_CATPATH = new CategoryPath(SceLibcParam_2xx.CATPATH, "LibcxxAllocReplacement");
 	
 	public LibcxxAllocReplacement(ProcessingContext ctx, Address libcxxAllocReplaceAddress, BinaryReader reader) throws IOException {
 		size = reader.readNextUnsignedInt();
@@ -70,9 +72,9 @@ public class LibcxxAllocReplacement implements StructConverter {
 	
 	public void apply() throws Exception {
 		//Local declarations for convenience
-		DataType size_t = TypeHelper.size_t;
-		DataType pVoid = TypeHelper.PVOID;
-		DataType uint = TypeHelper.u32;
+		final DataType size_t = new TypedefDataType("size_t", UnsignedIntegerDataType.dataType);
+		final DataType pVoid = TypeManager.PVOID;
+		final DataType uint = TypeManager.u32;
 
 		//Create function signatures
 		FunctionDefinitionDataType F_user_new = fdef("user_new", pVoid, spdef("size", size_t));
@@ -85,7 +87,7 @@ public class LibcxxAllocReplacement implements StructConverter {
 		FunctionDefinitionDataType F_user_delete_array_nothrow = fdef("user_delete_array_nothrow", VOID, pdef(new String[]{"ptr", "std_nothrow_t_reference"}, new DataType[]{pVoid, pVoid}));
 		
 		//Create the structure itself
-		StructureDataType libcxx_alloc_replace_struct = TypeHelper.createAndGetStructureDataType(LIBCXX_REPLACEMENT_CATPATH, NAME);
+		StructureDataType libcxx_alloc_replace_struct = new StructureDataType(SceLibcParam_2xx.CATPATH, NAME, 0);
 		libcxx_alloc_replace_struct.add(size_t, "size", "Size of this structure");
 		libcxx_alloc_replace_struct.add(uint, "unk4", null);
 		libcxx_alloc_replace_struct.add(new Pointer32DataType(F_user_new), "new", "operator new(std::size_t) throw(std::bad_alloc) replacement");
@@ -100,10 +102,7 @@ public class LibcxxAllocReplacement implements StructConverter {
 		if (libcxx_alloc_replace_struct.getLength() != SIZE)
 			System.err.println("Unexpected " + NAME + " data type size (" + libcxx_alloc_replace_struct.getLength() + " != expected " + SIZE + " !)");
 		
-		//Apply structure
-		_ctx.api.clearListing(_selfAddress);
-		_ctx.api.createData(_selfAddress, libcxx_alloc_replace_struct);
-		_ctx.api.createLabel(_selfAddress, _ctx.moduleName + "_" + libcxx_alloc_replace_struct.getName(), true);
+		Utils.createDataInNamespace(_selfAddress, Utils.getModuleName(), NAME, libcxx_alloc_replace_struct);
 		
 		//Markup functions
 		__markup_if_present(this.user_new, "user_new", F_user_new);

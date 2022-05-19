@@ -34,28 +34,19 @@ public class VitaElfHeader extends ElfHeader {
 		public final boolean relocatable;
 	}
 	
+	public static final short ET_SCE_EXEC = (short)0xFE00;
+	public static final short ET_SCE_RELEXEC = (short)0xFE04;
+	public static final short ET_SCE_PSP2RELEXEC = (short)0xFFA5;
+	
 	public static final Map<Short, ExecutableInfo> EXECUTABLE_TYPES = Map.of(
-			(short)0xFE00, new ExecutableInfo(0xFE00, "ET_SCE_RELEXEC", "SCE Executable", false),
-			(short)0xFE04, new ExecutableInfo(0xFE04, "ET_SCE_RELEXEC", "SCE Relocatable Executable", true)//, //ET_SCE_RELEXEC
-			//TODO support this
-			//(short)0xFFA5, new ExecutableInfo(0xFFA5, "ET_SCE_PSP2RELEXEC", "PSP2 Relocatable Executable", true) //Guessed name - present in old modules
+			ET_SCE_EXEC, new ExecutableInfo(ET_SCE_EXEC, "ET_SCE_RELEXEC", "SCE Executable", false),
+			ET_SCE_RELEXEC, new ExecutableInfo(ET_SCE_RELEXEC, "ET_SCE_RELEXEC", "SCE Relocatable Executable", true), //ET_SCE_RELEXEC
+			ET_SCE_PSP2RELEXEC, new ExecutableInfo(ET_SCE_PSP2RELEXEC, "ET_SCE_PSP2RELEXEC", "PSP2 Relocatable Executable", true) //Guessed name - present in old modules
     );
 	
+	public static final short ARM_MACHINE_TYPE = (short)0x28; //e_machine value for ARM
 	
-	public static final short ARM_MACHINE_TYPE 		= (short)0x28; 	 //e_machine value for ARM - expected for PS Vita ELFs
-	
-	/*
-	public static final short ET_SCE_EXEC 			= (short)0xFE00; //e_type value for non-relocatable images
-	public static final String ET_SCE_EXEC_NAME 	= "SCE Executable";
-
-	public static final short ET_SCE_RELEXEC 		= (short)0xFE04; //e_type value for relocatable images (PRX)
-	public static final String ET_SCE_RELEXEC_NAME 	= "SCE Relocatable Executable";
-	
-	public static final short ET_SCE_PSP2RELEXEC 	= (short)0xFFA5; //e_type value for old modules (0.931/some 0.940) - name is guessed
-	public static final String ET_SCE_PSP2RELEXEC_NAME = "SCE PSP2 Relocatable Executable";
-	*/
-	
-	
+	//TODO - override parse() so that the correct extension (i.e. VitaElfExtension) is created
 	
 	public static VitaElfHeader createElfHeader(GenericFactory factory, ByteProvider provider)
 			throws ElfException {

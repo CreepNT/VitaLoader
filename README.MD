@@ -2,9 +2,9 @@
 PS Vita ELF loader for Ghidra
 
 ## To do
-* Fix imports not being moved to the proper libraries, if possible
 * Add internal database support
-* Fix a few quirks in the code
+* Add more data types by default
+* Add support for a type database file
 
 # Credits
 * astrelsky and all contributors - [GhidraOrbis](https://github.com/astrelsky/GhidraOrbis)

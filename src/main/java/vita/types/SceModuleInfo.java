@@ -1,149 +1,215 @@
 package vita.types;
 
-import java.io.IOException;
-
 import ghidra.app.util.bin.BinaryReader;
+import ghidra.program.model.data.CharDataType;
 import ghidra.program.model.data.DataType;
-import ghidra.app.util.bin.StructConverter;
+import ghidra.program.model.data.EnumDataType;
 import ghidra.program.model.address.Address;
-import ghidra.app.util.bin.StructConverterUtil;
 import ghidra.program.model.data.StructureDataType;
 import ghidra.program.model.data.Pointer32DataType;
-import ghidra.util.exception.DuplicateNameException;
-import ghidra.program.model.mem.MemoryAccessException;
-import ghidra.program.model.symbol.Namespace;
-import ghidra.program.model.symbol.SourceType;
-import vita.misc.TypeHelper;
+import vita.misc.TypeManager;
+import vita.misc.Utils;
 import vita.elf.VitaElfExtension.ProcessingContext;
 
-public class SceModuleInfo implements StructConverter {
-	public short attributes;
-	public short version;
-	public String name;
-	public byte type;
-	public long gp_value;
-	public long export_top;
-	public long export_end;
-	public long import_top;
-	public long import_end;
-	public long dbg_fingerprint;
-	public long tls_start;
-	public long tls_filesz;
-	public long tls_memsz;
-	public long module_start;
-	public long module_stop;
-	public long exidx_top;
-	public long exidx_end;
-	public long extab_top;
-	public long extab_end;
-	public static final int SIZE = 0x5c;
-	public static final String NAME = "SceModuleInfo";
+public class SceModuleInfo {
+	public short attributes = 0;
+	public short[] version = { 0, 0 };
+	public String modname = "";
+	public byte infover = 0;
+	public long gp_value = 0;
+	public long libent_top = 0;
+	public long libent_btm = 0;
+	public long libstub_top = 0;
+	public long libstub_btm = 0;
+	public long fingerprint = 0;
+	
+	public long start_entry = 0;
+	public long stop_entry = 0;
+	
+	public long tls_start = 0;
+	public long tls_filesz = 0;
+	public long tls_memsz = 0;
 
+	public long exidx_top = 0;
+	public long exidx_btm = 0;
+	public long extab_top = 0;
+	public long extab_btm = 0;
+	public static final String STRUCTURE_NAME = "SceModuleInfo";
+
+	private static DataType MODULE_ATTRIBUTES = null;
+	private StructureDataType STRUCTURE = null;
+	
 	private ProcessingContext _ctx;
 	private Address _selfAddress;
 	
-	public SceModuleInfo(ProcessingContext ctx, Address moduleInfoAddress) throws IOException, MemoryAccessException {
-		BinaryReader reader = TypeHelper.getByteArrayBackedBinaryReader(ctx, moduleInfoAddress, SIZE);
-		attributes = reader.readNextShort();
-		version = reader.readNextShort(); //TODO: depending on this, set _ctx.SDKVersion
-		name = reader.readNextAsciiString(27);
-		type = reader.readNextByte();
-		gp_value = reader.readNextUnsignedInt();
-		export_top = reader.readNextUnsignedInt();
-		export_end = reader.readNextUnsignedInt();
-		import_top = reader.readNextUnsignedInt();
-		import_end = reader.readNextUnsignedInt();
-		dbg_fingerprint = reader.readNextUnsignedInt();
-		tls_start = reader.readNextUnsignedInt();
-		tls_filesz = reader.readNextUnsignedInt();
-		tls_memsz = reader.readNextUnsignedInt();
-		module_start = reader.readNextUnsignedInt();
-		module_stop = reader.readNextUnsignedInt();
-		exidx_top = reader.readNextUnsignedInt();
-		exidx_end = reader.readNextUnsignedInt();
-		
-		//Not present in 0.940 (-0.990?)
-		extab_top = reader.readNextUnsignedInt();
-		extab_end = reader.readNextUnsignedInt();
-		
-		ctx.moduleName = name;
+	public SceModuleInfo(ProcessingContext ctx, Address moduleInfoAddress) throws Exception {
 		_ctx = ctx;
 		_selfAddress = moduleInfoAddress;
-	}
-	
-	@Override
-	public DataType toDataType() throws DuplicateNameException, IOException {
-		return StructConverterUtil.toDataType(this);
-	}
-	
-	public void apply() throws Exception {
-		StructureDataType dt = TypeHelper.createAndGetStructureDataType(NAME);
-		dt.add(WORD, "modattr", "Module attributes"); //TODO make this an enum
-		dt.add(TypeHelper.makeArray(TypeHelper.u8, 2), "modver", "Module version (Major.Minor)");
-		dt.add(STRING, 27, "moduleName", "Name of this module");
-		dt.add(BYTE, "infover", null);
-		dt.add(Pointer32DataType.dataType, "gp_value", "Value for gp register (unused)");
-		dt.add(IBO32, "libent_top", "Address of exports table top");
-		dt.add(IBO32, "libent_end", "Address of exports table bottom");
-		dt.add(IBO32, "libstub_top", "Address of imports table top");
-		dt.add(IBO32, "libstub_end", "Address of imports table bottom");
-		dt.add(DWORD, "fingerprint", "Module fingerprint (used for debugging/versioning)");
-		dt.add(IBO32, "tls_start", "Address of TLS section start");
-		dt.add(DWORD, "tls_file_size", "Size of the TLS section in file");
-		dt.add(DWORD, "tls_mem_size", "Size of the TLS section in memory");
-		dt.add(IBO32, "start_entry", "Address of the module_start entrypoint");
-		dt.add(IBO32, "stop_entry", "Address of the module_stop entrypoint");
-		dt.add(IBO32, "exidx_top", "ARM EABI exception index table top");
-		dt.add(IBO32, "exidx_btm", "ARM EABI exception index table bottom");
-		dt.add(IBO32, "extab_start", "ARM EABI exception table top");
-		dt.add(IBO32, "extab_end", "ARM EABI exception table bottom");
 		
-		Namespace moduleNS = _ctx.program.getSymbolTable().createNameSpace(null, name, SourceType.ANALYSIS);
+		BinaryReader reader = Utils.getMemoryReader(moduleInfoAddress);
+		attributes = reader.readNextShort();
+		version[0] = reader.readNextByte();
+		version[1] = reader.readNextByte();
+		modname = reader.readNextAsciiString(27);
+		infover = reader.readNextByte();
+
+		//Fields common to all versions
+		gp_value = reader.readNextUnsignedInt();
+		libent_top = reader.readNextUnsignedInt();
+		libent_btm = reader.readNextUnsignedInt();
+		libstub_top = reader.readNextUnsignedInt();
+		libstub_btm = reader.readNextUnsignedInt();
 		
-		_ctx.api.clearListing(_selfAddress, _selfAddress.add(dt.getLength()));
-		_ctx.api.createData(_selfAddress, dt);
-		_ctx.api.createLabel(_selfAddress, dt.getName(), moduleNS, true, SourceType.ANALYSIS);
+		if (infover == 0) {
+			throw new RuntimeException("SceModuleInfo with infover 0 is not supported!");
+		}
+		
+		fingerprint = reader.readNextUnsignedInt();
+		
+		//Change according to version
+		if (infover < 6) {
+			if (infover >= 1) { //v1 fields
+				start_entry = reader.readNextUnsignedInt();
+				stop_entry = reader.readNextUnsignedInt();
+			}
+			
+			if (infover >= 2) { //v2 fields
+				exidx_top = reader.readNextUnsignedInt();
+				exidx_btm = reader.readNextUnsignedInt();
+			}
+			
+			if (infover == 3) { //v3 fields
+				tls_start = reader.readNextUnsignedInt();
+				tls_filesz = reader.readNextUnsignedInt();
+				tls_memsz = reader.readNextUnsignedInt();
+			}
+			
+			if (infover > 3) {
+				throw new RuntimeException("SceModuleInfo with infover 4/5 is not supported!");
+			}
+		} else {
+			if (infover > 6) {
+				throw new RuntimeException("SceModuleInfo with infover > 6 is not supported!");
+			}
+			
+			tls_start = reader.readNextUnsignedInt();
+			tls_filesz = reader.readNextUnsignedInt();
+			tls_memsz = reader.readNextUnsignedInt();
+			start_entry = reader.readNextUnsignedInt();
+			stop_entry = reader.readNextUnsignedInt();
+			exidx_top = reader.readNextUnsignedInt();
+			exidx_btm = reader.readNextUnsignedInt();
+			extab_top = reader.readNextUnsignedInt();
+			extab_btm = reader.readNextUnsignedInt();
+		}
+		
+		_ctx.moduleName = modname;
+		
+		//There are some cases in which module name and one exported library name are the same - maybe add a "Module" suffix?
+		Utils.createDataInNamespace(_selfAddress, modname, STRUCTURE_NAME, this.toDataType());
 	}
 	
+	public DataType toDataType() {
+		if (MODULE_ATTRIBUTES == null) {
+			EnumDataType attr = new EnumDataType(TypeManager.SCE_TYPES_CATPATH, "MODULE_ATTRIBUTES", 2);
+			attr.add("SCE_MODULE_ATTR_NONE", 			0x0000, "No module attributes");
+			attr.add("SCE_MODULE_ATTR_CANT_STOP", 		0x0001, "Resident module - cannot be stopped or unloaded.");
+			attr.add("SCE_MODULE_ATTR_EXCLUSIVE_LOAD",  0x0002, "Only one instance of this module can be loaded at a time.");
+			attr.add("SCE_MODULE_ATTR_EXCLUSIVE_START", 0x0004, "Only one instance of this module can be started at a time.");
+			attr.add("SCE_MODULE_ATTR_DEBUG", 			0x8000, "Debug");
+			MODULE_ATTRIBUTES = attr;
+		}
+		
+		if (STRUCTURE == null) {
+			final DataType IBO32 = TypeManager.IBO32;
+			
+			STRUCTURE = new StructureDataType(TypeManager.LOADER_CATPATH, STRUCTURE_NAME, 0);
+			STRUCTURE.add(MODULE_ATTRIBUTES, "modattr", "Module attributes");
+			STRUCTURE.add(Utils.makeArray(TypeManager.getDataType("SceUInt8"), 2), "modver", "Module version ([0] = major, [1] = minor)");
+			STRUCTURE.add(Utils.makeArray(CharDataType.dataType, 27), "modname", "Module name");
+			STRUCTURE.add(TypeManager.getDataType("SceUInt8"), "infover", "SceModuleInfo version");
+			STRUCTURE.add(Pointer32DataType.dataType, "gp_value", "Value for the gp register (unused)");
+			STRUCTURE.add(IBO32, "libent_top", "Address of exports table top");
+			STRUCTURE.add(IBO32, "libent_end", "Address of exports table bottom");
+			STRUCTURE.add(IBO32, "libstub_top", "Address of imports table top");
+			STRUCTURE.add(IBO32, "libstub_end", "Address of imports table bottom");
+			STRUCTURE.add(TypeManager.getDataType("SceUInt32"), "fingerprint", "Module fingerprint");
+			
+			
+			
+			//Change according to version
+			if (infover < 6) {
+				if (infover >= 1) { //v1 fields
+					STRUCTURE.add(IBO32, "start_entry", "Address of the module_start entrypoint");
+					STRUCTURE.add(IBO32, "stop_entry", "Address of the module_stop entrypoint");
+				}
+				
+				if (infover >= 2) { //v2 fields
+					STRUCTURE.add(IBO32, "exidx_top", "ARM EABI exception index table top");
+					STRUCTURE.add(IBO32, "exidx_btm", "ARM EABI exception index table bottom");
+				}
+				
+				if (infover == 3) { //v3 fields
+					STRUCTURE.add(IBO32, "tls_start", "Address of TLS section start");
+					STRUCTURE.add(TypeManager.getDataType("SceSize"), "tls_file_size", "Size of the TLS section in file");
+					STRUCTURE.add(TypeManager.getDataType("SceSize"), "tls_mem_size", "Size of the TLS section in memory");
+				}
+			} else {
+				STRUCTURE.add(IBO32, "tls_start", "Address of TLS section start");
+				STRUCTURE.add(TypeManager.getDataType("SceSize"), "tls_file_size", "Size of the TLS section in file");
+				STRUCTURE.add(TypeManager.getDataType("SceSize"), "tls_mem_size", "Size of the TLS section in memory");
+				STRUCTURE.add(IBO32, "start_entry", "Address of the module_start entrypoint");
+				STRUCTURE.add(IBO32, "stop_entry", "Address of the module_stop entrypoint");
+				STRUCTURE.add(IBO32, "exidx_top", "ARM EABI exception index table top");
+				STRUCTURE.add(IBO32, "exidx_btm", "ARM EABI exception index table bottom");
+				STRUCTURE.add(IBO32, "extab_start", "ARM EABI exception table top");
+				STRUCTURE.add(IBO32, "extab_end", "ARM EABI exception table bottom");
+			}
+			
+			//Utils.registerDataType(STRUCTURE);
+		}
+		
+		//Utils.registerDataType(STRUCTURE);
+		
+		return STRUCTURE;
+	}
+
 	public void process() throws Exception {
 		//Process exports
 		_ctx.monitor.setMessage("Resolving module exports...");
-		Address exportsStart = _ctx.textBlock.getStart().add(export_top);
-		Address exportsEnd = _ctx.textBlock.getStart().add(export_end);
-		while (!exportsStart.equals(exportsEnd)) {
-			SceModuleExports exportsInfo = new SceModuleExports(_ctx, exportsStart);
-			if (exportsInfo.size != SceModuleExports.SIZE) {
-				_ctx.logger.appendMsg("Unexpected " + SceModuleExports.STRUCTURE_NAME + " size at address " + 
-						exportsStart + String.format(" (got 0x%X, expected 0x%X)", exportsInfo.size, SceModuleExports.SIZE));
-				break;
-			}
-			exportsInfo.apply();
+		Address exportsStart = Utils.getProgramAddress(libent_top);
+		Address exportsEnd = Utils.getProgramAddress(libent_btm);
+		while (exportsStart.compareTo(exportsEnd) < 0) {
+			SceLibEntryTable exportsInfo = new SceLibEntryTable(_ctx, exportsStart);
 			exportsInfo.process();
 			
 			exportsStart = exportsStart.add(exportsInfo.size);
 		}
+		
+		if (!exportsStart.equals(exportsEnd)) {
+			throw new RuntimeException("Mismatched exports parsing - ended at " + exportsStart.toString() + " instead of expected " + exportsEnd.toString());
+		}
+		
 		_ctx.monitor.setShowProgressValue(false);
 		
 		 
 		//Process imports
 		_ctx.monitor.setMessage("Resolving module imports...");
-		Address importsStart = _ctx.textBlock.getStart().add(import_top);
-		Address importsEnd = _ctx.textBlock.getStart().add(import_end);
+		Address importsStart = Utils.getProgramAddress(libstub_top);
+		Address importsEnd = Utils.getProgramAddress(libstub_btm);
 		
-		while (!importsStart.equals(importsEnd)) {
-			BinaryReader importsSizeReader = TypeHelper.getByteArrayBackedBinaryReader(_ctx, importsStart, 2);
-			int importsSize = importsSizeReader.peekNextShort(); //Use peek instead of read to have index at 0 for struct creation
+		while (importsStart.compareTo(importsEnd) < 0) {
+			int importsSize = Utils.getMemoryReader(importsStart).readNextShort();
 			GenericModuleImports importsObject = null;
 			switch (importsSize) {
-			case SceModuleImports_1xx.SIZE:
-				SceModuleImports_1xx modImports1xx = new SceModuleImports_1xx(_ctx, importsStart);
-				modImports1xx.apply();
-				importsObject = new GenericModuleImports(_ctx, modImports1xx);
+			case SceLibStubTable_0x34.STRUCTURE_SIZE:
+				importsObject = new GenericModuleImports(_ctx, new SceLibStubTable_0x34(importsStart));
 				break;
-			case SceModuleImports_3xx.SIZE:
-				SceModuleImports_3xx modImports3xx = new SceModuleImports_3xx(_ctx, importsStart);
-				modImports3xx.apply();
-				importsObject = new GenericModuleImports(_ctx, modImports3xx);
+			case SceLibStubTable_0x24.STRUCTURE_SIZE:
+				importsObject = new GenericModuleImports(_ctx, new SceLibStubTable_0x24(importsStart));
+				break;
+			case SceLibStubTable_0x2C.STRUCTURE_SIZE:
+				importsObject = new GenericModuleImports(_ctx, new SceLibStubTable_0x2C(importsStart));
 				break;
 			default:
 				_ctx.logger.appendMsg(String.format("Unexpected SceModuleImports size 0x%08X at address " + importsStart, importsSize));
@@ -154,7 +220,10 @@ public class SceModuleInfo implements StructConverter {
 
 			importsStart = importsStart.add(importsSize);
 		}
-				
+		
+		if (!importsStart.equals(importsEnd)) {
+			throw new RuntimeException("Mismatched imports parsing - ended at " + importsStart.toString() + " instead of expected " + importsEnd.toString());
+		}	
 	}
 
 }

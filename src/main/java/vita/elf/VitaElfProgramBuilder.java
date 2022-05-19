@@ -12,7 +12,6 @@ import ghidra.app.util.bin.format.elf.ElfSymbolTable;
 import ghidra.app.util.importer.MessageLog;
 import ghidra.app.util.opinion.ElfLoader;
 import ghidra.framework.options.Options;
-import ghidra.program.database.mem.FileBytes;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.mem.Memory;
 import ghidra.program.model.reloc.RelocationTable;
@@ -48,8 +47,6 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 	//Probably because DefaultElfProgramBuilder calls top-level through invoke() - it works so I'm not fixing it
 	@Override
 	protected void load(TaskMonitor monitor) throws IOException, CancelledException {
-		
-		
 		//Parse Vita-specific options
 		this.useExternalTypes = getBooleanOption(VitaLoader.USE_CUSTOM_TYPES_DATABASE_OPTNAME);
 		this.useExternalNIDs = getBooleanOption(VitaLoader.USE_CUSTOM_NIDS_DATABASE_OPTNAME);
@@ -61,8 +58,12 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 		elf.parse();
 		monitor.setCancelEnabled(true);
 
-		//TODO parse the custom sections
-		
+
+		monitor.setMessage("Completing ELF header parsing...");
+		monitor.setCancelEnabled(false);
+		elf.parse();
+		monitor.setCancelEnabled(true);
+
 		int id = program.startTransaction("Load ELF program");
 		boolean success = false;
 		try {
@@ -75,11 +76,13 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 			// resolve segment/sections and create program memory blocks
 			ByteProvider byteProvider = elf.getReader().getByteProvider();
 			try (InputStream fileIn = byteProvider.getInputStream(0)) {
-				FileBytes fileBytes = program.getMemory().createFileBytes(
-					byteProvider.getName(), 0, byteProvider.length(), fileIn, monitor);
-				setFileBytes(fileBytes);
+				fileBytes = program.getMemory()
+						.createFileBytes(byteProvider.getName(), 0, byteProvider.length(), fileIn,
+							monitor);
 			}
-			
+
+			adjustSegmentAndSectionFileAllocations(byteProvider);
+
 			// process headers and define "section" within memory elfProgramBuilder
 			processProgramHeaders(monitor);
 			processSectionHeaders(monitor);
@@ -87,24 +90,14 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 			resolve(monitor);
 
 			if (elf.e_shnum() == 0) {
-				// create/expand segments to their fullsize if not sections are defined
-				try {
-					expandProgramHeaderBlocks(monitor);
-				} catch (Exception e) {
-					getLog().appendException(e);
-				}
+				// create/expand segments to their fullsize if no sections are defined
+				expandProgramHeaderBlocks(monitor);
 			}
 
 			if (memory.isEmpty()) {
 				// TODO: Does this really happen?
 				success = true;
 				return;
-			}
-
-			if (elf.e_shnum() != 0) {
-				// discard tiny alignment/filler segment fragments when
-				// section headers are present
-				pruneDiscardableBlocks();
 			}
 
 			markupElfHeader(monitor);
@@ -117,16 +110,11 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 
 			processSymbolTables(monitor);
 
-			//Normally, we should call this and it should work by magic
-			//But I just don't understand how GhidraOrbis gets this to work
-			//I think including ExtensionPoint *should* make Ghidra auto-load the class,
-			//but it doesn't for whatever reason ? And that shit isn't documented either...
-			//Anyways, since I just want that to work.... time for fucky wucky ! :^)
-			//elf.getLoadAdapter().processElf(this, monitor);
 			new VitaElfExtension().processElf(this, monitor);
 
-			processRelocations(monitor);
 			processEntryPoints(monitor);
+
+			processRelocations(monitor);
 			processImports(monitor);
 
 			monitor.setMessage("Processing PLT/GOT ...");
@@ -134,12 +122,15 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 
 			markupHashTable(monitor);
 			markupGnuHashTable(monitor);
+			markupGnuBuildId(monitor);
+			markupGnuDebugLink(monitor);
 
 			processGNU(monitor);
 			processGNU_readOnly(monitor);
 
 			success = true;
-		} finally {
+		}
+		finally {
 			program.endTransaction(id, success);
 		}
 	}
@@ -165,7 +156,7 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 			props.setString(ElfLoader.ELF_FILE_TYPE_PROPERTY, String.format("Unknown! (0x%04X)", elf.e_type()));
 			props.setBoolean(RelocationTable.RELOCATABLE_PROP_NAME, false);
 		} else {
-			props.setString(ElfLoader.ELF_FILE_TYPE_PROPERTY, elfInfo.name + "(" + elfInfo.typeName + ")");
+			props.setString(ElfLoader.ELF_FILE_TYPE_PROPERTY, elfInfo.name + " (" + elfInfo.typeName + ")");
 			props.setBoolean(RelocationTable.RELOCATABLE_PROP_NAME, elfInfo.relocatable);
 		}
 
@@ -200,8 +191,10 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 
 	}
 	
+	//TODO: override createExternalFunctionLinkage? check it out for PROPER library linking
+	
 	private boolean getBooleanOption(String optionName) {
-		for (Option option : getOptions()) {
+		for (Option option : this.options) {
 			if (option.getName().equals(optionName) && Boolean.class.isAssignableFrom(option.getValueClass())) {
 				return (boolean)option.getValue();
 			}
@@ -209,7 +202,7 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 		return false;
 	}
 	
-	private String pad(int value) {
+	protected String pad(int value) {
 		return StringUtilities.pad("" + value, ' ', 4);
 	}
 }

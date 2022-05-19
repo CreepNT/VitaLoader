@@ -1,20 +1,16 @@
 package vita.types;
 
-import java.io.IOException;
-
 import ghidra.app.util.bin.BinaryReader;
+import ghidra.program.model.data.CategoryPath;
 import ghidra.program.model.data.DataType;
-import ghidra.app.util.bin.StructConverter;
 import ghidra.program.model.address.Address;
-import ghidra.app.util.bin.StructConverterUtil;
 import ghidra.program.model.data.StructureDataType;
 import ghidra.program.model.data.PointerDataType;
-import ghidra.util.exception.DuplicateNameException;
 
-import vita.misc.TypeHelper;
-import vita.elf.VitaElfExtension.ProcessingContext;
+import vita.misc.TypeManager;
+import vita.misc.Utils;
 
-public class SceLibcParam_0xx implements StructConverter {
+public class SceLibcParam_0xx {
 	public long size;
 	public long unk4;
 	public long pHeapSize;
@@ -25,12 +21,13 @@ public class SceLibcParam_0xx implements StructConverter {
 	public long unk1C;
 	public long pMallocReplace;
 	public long pFreeReplace;
-	private final ProcessingContext _ctx;
-	private final Address _selfAddress;
+
 	public static final int SIZE = 0x1C;
 	public static final String NAME = "SceLibcParam_0xx";
 	
-	public SceLibcParam_0xx(ProcessingContext ctx, Address libcParamAddress, BinaryReader reader) throws IOException {
+	public static final CategoryPath CATPATH = new CategoryPath(TypeManager.SCE_TYPES_CATPATH, "SceLibc");
+	
+	public SceLibcParam_0xx(Address libcParamAddress, BinaryReader reader) throws Exception {
 		size = reader.readNextUnsignedInt();
 		unk4 = reader.readNextUnsignedInt();
 		pHeapSize = reader.readNextUnsignedInt();
@@ -39,29 +36,36 @@ public class SceLibcParam_0xx implements StructConverter {
 		pHeapDelayedAlloc = reader.readNextUnsignedInt();
 		SDKVersion = reader.readNextUnsignedInt();
 		
-		_ctx = ctx;
-		_selfAddress = libcParamAddress;
+		if (Utils.getModuleSDKVersion() != SDKVersion) {
+			Utils.appendLogMsg(String.format("Mismatched SDK version in SceLibcParam (0x%08X != 0x%08X)", SDKVersion, Utils.getModuleSDKVersion()));
+		}
+		
+		Utils.createDataInNamespace(libcParamAddress, Utils.getModuleName(), NAME, toDataType());
 	}
 	
-	public DataType toDataType() throws DuplicateNameException, IOException {
-		return StructConverterUtil.toDataType(this);
+	private static StructureDataType DATATYPE = null;
+	public static DataType toDataType() {
+		if (DATATYPE == null) {
+			final DataType SceUInt32 = TypeManager.getDataType("SceUInt32");
+			
+			DATATYPE = new StructureDataType(CATPATH, NAME, 0);
+			DATATYPE.add(SceUInt32, "size", "Size of this structure");
+			DATATYPE.add(SceUInt32, 4, "unk04", null);
+			DATATYPE.add(new PointerDataType(SceUInt32), "pHeapSize",  "Pointer to the allocated/maximum heap size");
+			DATATYPE.add(new PointerDataType(SceUInt32), "pHeapDefaultSize", "Pointer to the ?default heap size? - usage unknown");
+			DATATYPE.add(new PointerDataType(SceUInt32), "pHeapExtendedAlloc", "Pointer to the 'Extend heap' variable - enables dynamic heap if value pointed to is non-0");
+			DATATYPE.add(new PointerDataType(SceUInt32), "pHeapDelayedAlloc", "Pointer to the 'Delay heap allocation' variable - heap memory block allocation is done on first call to *alloc instead of process creation if value pointed to is non-0");
+			DATATYPE.add(SceUInt32, "SDKVersion", "SDK version this app was linked against");
+
+			if (DATATYPE.getLength() != SIZE)
+				System.err.println("Unexpected " + NAME + " data type size (" + DATATYPE.getLength() + " != expected " + SIZE + " !)");
+		}
+		return DATATYPE;
 	}
 
 	public void apply() throws Exception {
-		StructureDataType dt = TypeHelper.createAndGetStructureDataType(NAME);
-		dt.add(TypeHelper.u32, "size", "Size of this structure");
-		dt.add(TypeHelper.u32, 4, "unk04", null);
-		dt.add(new PointerDataType(TypeHelper.u32), "pHeapSize",  "Pointer to the allocated/maximum heap size");
-		dt.add(new PointerDataType(TypeHelper.u32), "pHeapDefaultSize", "Pointer to the ?default heap size? - usage unknown");
-		dt.add(new PointerDataType(TypeHelper.u32), "pHeapExtendedAlloc", "Pointer to the 'Extend heap' variable - enables dynamic heap if value pointed to is non-0");
-		dt.add(new PointerDataType(TypeHelper.u32), "pHeapDelayedAlloc", "Pointer to the 'Delay heap allocation' variable - heap memory block allocation is done on first call to *alloc instead of process creation if value pointed to is non-0");
-		dt.add(TypeHelper.u32, "SDKVersion", "SDK version this app was linked against");
 
-		if (dt.getLength() != SIZE)
-			System.err.println("Unexpected " + NAME + " data type size (" + dt.getLength() + " != expected " + SIZE + " !)");
 
-		_ctx.api.clearListing(_selfAddress, _selfAddress.add(dt.getLength()));
-		_ctx.api.createData(_selfAddress, dt);
-		_ctx.api.createLabel(_selfAddress, _ctx.moduleName + "_SceLibcParam", true);
+
 	}
 }
