@@ -74,7 +74,7 @@ public class DefaultElfProgramBuilder extends ElfProgramBuilder {
 	private Long dataImageBase; // cached data image base option or null if not applicable
 	private MessageLog log;
 
-	private ElfHeader elf;
+	protected ElfHeader elf;
 	protected FileBytes fileBytes;
 
 	private Listing listing;

@@ -110,8 +110,8 @@ public class GenericModuleImports {
 			
 			Address funcNidTableAddr = Utils.getProgramAddress(FuncNIDTable);
 			Address funcEntTableAddr = Utils.getProgramAddress(FuncEntryTable);
-			Utils.createDataInNamespace(funcNidTableAddr, LibraryName, "FunctionsNIDTable", Utils.makeArray(SceUInt32, NumFunctions));
-			Utils.createDataInNamespace(funcEntTableAddr, LibraryName, "FunctionsEntryTable", Utils.makeArray(Pointer32DataType.dataType, NumFunctions));
+			Utils.createDataInNamespace(funcNidTableAddr, LibraryName, "__" + LibraryName + "_func_nid_table", Utils.makeArray(SceUInt32, NumFunctions));
+			Utils.createDataInNamespace(funcEntTableAddr, LibraryName, "__" + LibraryName + "_func_table", Utils.makeArray(Pointer32DataType.dataType, NumFunctions));
 			
 			byte[] funcNidTableBytes = new byte[4 * NumFunctions];
 			byte[] funcEntTableBytes = new byte[4 * NumFunctions];
@@ -154,8 +154,8 @@ public class GenericModuleImports {
 			
 			Address varNidTableAddr = Utils.getProgramAddress(VarNIDTable);
 			Address varEntTableAddr = Utils.getProgramAddress(VarLocTable);
-			Utils.createDataInNamespace(varNidTableAddr, LibraryName, "VariablesNIDTable",   Utils.makeArray(SceUInt32, NumVariables));
-			Utils.createDataInNamespace(varEntTableAddr, LibraryName, "VariablesEntryTable", Utils.makeArray(Pointer32DataType.dataType, NumVariables));
+			Utils.createDataInNamespace(varNidTableAddr, LibraryName,  "__" + LibraryName + "_var_nid_table", Utils.makeArray(SceUInt32, NumVariables));
+			Utils.createDataInNamespace(varEntTableAddr, LibraryName, "__" + LibraryName + "_var_table", Utils.makeArray(Pointer32DataType.dataType, NumVariables));
 		
 			byte[] varNidTableBytes = new byte[4 * NumVariables];
 			byte[] varEntTableBytes = new byte[4 * NumVariables];
@@ -171,7 +171,7 @@ public class GenericModuleImports {
 				
 				Address varAddr = Utils.getProgramAddress(varEnt);
 				
-				String defaultName = String.format("%s_08X", LibraryName, varNid);
+				String defaultName = String.format("%s_%08X", LibraryName, varNid);
 				String dbName = _ctx.nidDb.getVariableName(LibraryNID, varNid);
 				
 				_ctx.api.clearListing(varAddr);
@@ -192,6 +192,7 @@ public class GenericModuleImports {
 			
 			Address varNidTableAddr = Utils.getProgramAddress(TLSNIDTable);
 			Address varEntTableAddr = Utils.getProgramAddress(TLSLocTable);
+			//TODO: correct name
 			Utils.createDataInNamespace(varNidTableAddr, LibraryName, "TLSVariablesNIDTable",   Utils.makeArray(SceUInt32, NumTLSVars));
 			Utils.createDataInNamespace(varEntTableAddr, LibraryName, "TLSVariablesEntryTable", Utils.makeArray(Pointer32DataType.dataType, NumTLSVars));
 		
@@ -209,7 +210,7 @@ public class GenericModuleImports {
 				
 				Address varAddr = Utils.getProgramAddress(varEnt);
 				
-				String defaultName = String.format("%s_08X", LibraryName, varNid);
+				String defaultName = String.format("%s_%08X", LibraryName, varNid);
 				String dbName = _ctx.nidDb.getVariableName(LibraryNID, varNid);
 				
 				_ctx.api.clearListing(varAddr);

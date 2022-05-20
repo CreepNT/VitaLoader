@@ -7,6 +7,7 @@ import ghidra.program.model.data.CharDataType;
 import ghidra.program.model.data.DataType;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.data.StructureDataType;
+import ghidra.program.model.data.TerminatedStringDataType;
 import ghidra.program.model.data.Pointer32DataType;
 import ghidra.program.model.data.PointerDataType;
 import vita.elf.VitaElfExtension.ProcessingContext;
@@ -93,7 +94,7 @@ public class SceProcessParam {
 	public void apply() throws Exception {
 		final DataType SceUInt32 = TypeManager.getDataType("SceUInt32");
 		
-		Utils.createDataInNamespace(_selfAddress, Utils.getModuleName(), STRUCTURE_NAME, toDataType());
+		Utils.createDataInNamespace(_selfAddress, "NONAME", "__sce_process_param", toDataType());
 		
 		markup_string_if_present(this.sceUserMainThreadName, "sceUserMainThreadName");
 		markup_if_present(this.sceUserMainThreadPriority, "sceUserMainThreadPriority", SceUInt32);
@@ -134,8 +135,7 @@ public class SceProcessParam {
 	
 	private void markup_string_if_present(long address, String name) throws Exception {
 		if (address != 0L) {
-			//TODO - allow namespace
-			Utils.createAsciiString(Utils.getProgramAddress(address));
+			Utils.createDataInNamespace(Utils.getProgramAddress(address), Utils.getModuleName(), name, new TerminatedStringDataType());
 		}
 	}
 }

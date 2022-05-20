@@ -40,7 +40,7 @@ public class SceLibcParam_0xx {
 			Utils.appendLogMsg(String.format("Mismatched SDK version in SceLibcParam (0x%08X != 0x%08X)", SDKVersion, Utils.getModuleSDKVersion()));
 		}
 		
-		Utils.createDataInNamespace(libcParamAddress, Utils.getModuleName(), NAME, toDataType());
+		Utils.createDataInNamespace(libcParamAddress, Utils.getModuleName(), "__sce_libcparam", toDataType());
 	}
 	
 	private static StructureDataType DATATYPE = null;

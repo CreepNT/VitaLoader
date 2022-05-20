@@ -11,12 +11,11 @@ import ghidra.app.util.bin.BinaryReader;
 import ghidra.program.model.data.CharDataType;
 import ghidra.program.model.data.DataType;
 import ghidra.program.model.address.Address;
-import ghidra.program.model.listing.Data;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.symbol.Namespace;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.data.StructureDataType;
-import ghidra.program.model.data.UnsignedIntegerDataType;
+import ghidra.program.model.data.TerminatedStringDataType;
 import ghidra.program.model.data.Pointer32DataType;
 
 import vita.misc.TypeManager;
@@ -49,7 +48,7 @@ public class SceLibEntryTable {
 	private final Address _selfAddress; 	//Address this structure is located at
 	
 	private final String 	_libName; 		//Name of this library
-	private final Namespace _libNamespace; 	//Namespace used to store library objects
+	private Namespace _libNamespace; 	//Namespace used to store library objects
 	
 	
 	private int _numStaticProbes = 0; 			//Number of entries in the static probes array
@@ -125,10 +124,11 @@ public class SceLibEntryTable {
 		//Parse library name if present
 		if (this.pLibName != 0L) {
 			Address libNameAddress = Utils.getProgramAddress(this.pLibName);
-			Data libNameString = Utils.createAsciiString(libNameAddress);
-			byte[] stringBytes = libNameString.getBytes();
+			BinaryReader libNameReader = Utils.getMemoryReader(libNameAddress);
+			_libName = libNameReader.readNextAsciiString();
+			_libNamespace = Utils.getNamespaceFromName(_libName);
 			
-			_libName = new String(stringBytes, 0, stringBytes.length - 1); //Remove NUL
+			Utils.createDataInNamespace(libNameAddress, _libNamespace, "TODO_NAME", new TerminatedStringDataType());
 			
 			if (isNONAMELibrary()) {
 				Utils.appendLogMsg(String.format("WARNING: NONAME library has a name! (name=%s)", _libName));
@@ -187,9 +187,9 @@ public class SceLibEntryTable {
 		Address nidTableAddress = Utils.getProgramAddress(pNidTbl);
 		Address entryTableAddress = Utils.getProgramAddress(pEntryTbl);
 		
-
-		Utils.createDataInNamespace(entryTableAddress, _libNamespace, "EntryTable", Utils.makeArray(Pointer32DataType.dataType, _numExports));
-		Utils.createDataInNamespace(nidTableAddress, _libNamespace, "NIDTable", Utils.makeArray(TypeManager.getDataType("SceUInt32"), _numExports));
+		//TODO: is this correct?
+		Utils.createDataInNamespace(entryTableAddress, _libNamespace, "_" + _libName + "entry_table", Utils.makeArray(Pointer32DataType.dataType, _numExports));
+		Utils.createDataInNamespace(nidTableAddress, _libNamespace, "_" + _libName + "nid_table", Utils.makeArray(TypeManager.getDataType("SceUInt32"), _numExports));
 		
 		//Process exported functions
 		if (numFuncs > 0) {
@@ -338,8 +338,7 @@ public class SceLibEntryTable {
 			if (varNID == MODULE_INFO_NID) { //Parsing of ELFs begins by finding and parsing the SceModuleInfo, so nothing to do
 				return;
 			} else if (varNID == MODULE_SDK_VERSION_NID) {
-				_ctx.api.createData(varAddr, UnsignedIntegerDataType.dataType); //TODO SceUInt32
-				_ctx.api.createLabel(varAddr, MODULE_SDK_VERSION_VARIABLE_NAME, true, SourceType.ANALYSIS);
+				Utils.createDataInNamespace(varAddr, _libName, MODULE_SDK_VERSION_VARIABLE_NAME, TypeManager.getDataType("SceUInt32"));
 				_ctx.api.setPlateComment(varAddr, "Version of the SDK the static library used to compile this module comes from");
 			} else if (varNID == PROCESS_PARAM_NID) {
 				

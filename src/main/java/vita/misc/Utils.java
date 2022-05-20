@@ -12,13 +12,13 @@ import ghidra.program.model.data.DataTypeConflictHandler;
 import ghidra.program.model.lang.Register;
 import ghidra.program.model.lang.RegisterValue;
 import ghidra.program.model.listing.ContextChangeException;
-import ghidra.program.model.listing.Data;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.mem.MemoryAccessException;
 import ghidra.program.model.mem.MemoryBlock;
 import ghidra.program.model.symbol.ExternalLocation;
 import ghidra.program.model.symbol.Namespace;
 import ghidra.program.model.symbol.SourceType;
+import ghidra.program.model.util.CodeUnitInsertionException;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
 import ghidra.util.task.TaskMonitor;
@@ -62,6 +62,10 @@ public class Utils {
 	public static MemoryBlock findBlockForAddress(long addr) {
 		MemoryBlock[] blocks = utilsCtx.memory.getBlocks();
 		for (MemoryBlock block : blocks) {
+			if (block.isOverlay() || block.isMapped()) {
+				continue;
+			}
+			
 			long start = block.getStart().getOffset();
 			long end = block.getEnd().getOffset();
 			
@@ -82,16 +86,22 @@ public class Utils {
 	}
 	
 	public static Address getProgramAddress(long addr) {
-		Address address = null;
+		final long imageBase = utilsCtx.helper.getElfHeader().getImageBase();
+	
 		MemoryBlock block = findBlockForAddress(addr);
-		if (block != null) {
-			address = block.getStart().getNewAddress(addr);
+		if (block == null) { //Try with addr as "RVA"	
+			addr += imageBase;
+			block = findBlockForAddress(addr);
 		}
-		return address;
+		
+		if (block == null) {
+			throw new RuntimeException(String.format("Can't find Address for addr=0x%08X", addr));
+		}
+		
+		
+		final long blockBase = block.getStart().getOffset();
+		return block.getStart().add(addr - blockBase);
 	}
-	
-	
-	
 	
 	public static void registerDataType(DataType dt) {
 		utilsCtx.dtm.addDataType(dt, DataTypeConflictHandler.REPLACE_HANDLER);
@@ -117,13 +127,20 @@ public class Utils {
 		return ns;
 	}
 	
-	public static Data createAsciiString(Address stringAddr) throws Exception {
-		return utilsCtx.api.createAsciiString(stringAddr);
-	}
-	
 	public static void createDataInNamespace(Address address, Namespace ns, String name, DataType type) throws Exception {
-		utilsCtx.api.clearListing(address, address.add(type.getLength() - 1));
-		utilsCtx.api.createData(address, type);
+		if (!type.isZeroLength() && type.getLength() > 0) {
+			utilsCtx.api.clearListing(address, address.add(type.getLength() - 1));
+		}
+		try {
+			utilsCtx.api.createData(address, type);
+		} catch (CodeUnitInsertionException e) {
+			if (!type.isZeroLength() && type.getLength() > 0) {
+				utilsCtx.logger.appendMsg("Exception when creating datatype " + type.getName() + " @ " + address.toString());
+				utilsCtx.logger.appendException(e);
+			} else {
+				//Everything is fine.
+			}
+		}
 		utilsCtx.api.createLabel(address, name, ns, true, SourceType.ANALYSIS);
 		
 	}

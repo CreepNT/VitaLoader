@@ -54,7 +54,7 @@ public class SceLibcParam_2xx {
 		_ctx = ctx;
 		_selfAddress = libcParamAddress;
 		
-		Utils.createDataInNamespace(_selfAddress, Utils.getModuleName(), NAME, toDataType());
+		Utils.createDataInNamespace(_selfAddress, Utils.getModuleName(), "__sce_libcparam", toDataType());
 	}
 	
 	private static StructureDataType DATATYPE = null;

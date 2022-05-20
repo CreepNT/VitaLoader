@@ -5,6 +5,7 @@ import ghidra.program.model.data.CharDataType;
 import ghidra.program.model.data.DataType;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.data.StructureDataType;
+import ghidra.program.model.data.TerminatedStringDataType;
 import ghidra.program.model.data.Pointer32DataType;
 
 import vita.misc.TypeManager;
@@ -63,7 +64,7 @@ public class SceLibStubTable_0x2C {
 			Address libNameAddr = Utils.getProgramAddress(pLibName);
 			BinaryReader libNameReader = Utils.getMemoryReader(libNameAddr);
 			_LibraryName = libNameReader.readNextAsciiString();
-			Utils.createAsciiString(libNameAddr);
+			Utils.createDataInNamespace(libNameAddr, _LibraryName, "_" + _LibraryName + "_stub_str", new TerminatedStringDataType());
 		} else {
 			throw new RuntimeException("SceLibStubTable at address " + moduleImportsAddr.toString() + " doesn't have a library name!");
 		}

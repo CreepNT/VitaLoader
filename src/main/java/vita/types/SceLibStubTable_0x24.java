@@ -4,6 +4,7 @@ import ghidra.app.util.bin.BinaryReader;
 import ghidra.program.model.data.DataType;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.data.StructureDataType;
+import ghidra.program.model.data.TerminatedStringDataType;
 import ghidra.program.model.data.Pointer32DataType;
 import ghidra.program.model.data.StringDataType;
 
@@ -52,6 +53,7 @@ public class SceLibStubTable_0x24 {
 		if (library_name_ptr != 0L) {
 			BinaryReader libNameReader = Utils.getMemoryReader(Utils.getProgramAddress(library_name_ptr));
 			_LibraryName = libNameReader.readNextAsciiString();
+			Utils.createDataInNamespace(Utils.getProgramAddress(library_name_ptr), _LibraryName, "_" + _LibraryName + "_stub_str", new TerminatedStringDataType());
 		} else {
 			throw new RuntimeException("SceLibStubTable at address " + moduleImportsAddr.toString() + " doesn't have a library name!");
 		}

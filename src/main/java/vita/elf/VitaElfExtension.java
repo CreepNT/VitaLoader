@@ -14,6 +14,7 @@ import ghidra.app.util.bin.format.elf.ElfHeader;
 import ghidra.program.model.data.DataTypeManager;
 import ghidra.app.util.bin.format.elf.ElfLoadHelper;
 import ghidra.app.util.bin.format.elf.ElfProgramHeader;
+import ghidra.app.util.bin.format.elf.ElfSectionHeader;
 import ghidra.app.util.bin.format.elf.extend.ElfExtension;
 
 import vita.types.SceModuleInfo;
@@ -97,49 +98,55 @@ public class VitaElfExtension extends ElfExtension {
 		Utils.initialize(ctx);
 		
 		TypeManager.initialize();
-		
-		//Add default SCE datatypes
-		//ctx.typeDb.addSceTypes(TypeHelper.SCE_TYPES_CATPATH);
-		
-		//Load types database if user asked to provide one
-		//ctx.typeDb.loadAndParseToProgram(ctx.helper.useExternalTypes); //No - TypeDatabase is broken
-		
+
 		//Load NIDs database
 		ctx.nidDb.populate(ctx.helper.useExternalNIDs);
 		
-		
 		Address moduleInfoAddress = null;
-		if (elf.e_type() == VitaElfHeader.ET_SCE_PSP2RELEXEC) {
-			//For old ELF (<= 0.931), p_phaddr of .text holds FILE OFFSET of SceModuleInfo
-			//so SceModuleInfo is at .text + p_phaddr - p_offset
-			
-			//Set guessed SDK version
-			Utils.setModuleSDKVersion(0x00931000L);
-			
-			ElfProgramHeader modInfoPhdr = null;
-			
-			ElfProgramHeader[] Phdrs = elf.getProgramHeaders();
-			for (ElfProgramHeader ph: Phdrs) {
-				if (ph.getPhysicalAddress() != 0) { //First w/ non-0 paddr is assumed to be .text
-					modInfoPhdr = ph;
-					break;
+		if (elf.e_shnum() > 0) { //"Unstripped" ELF - find SceModuleInfo section
+			ElfSectionHeader[] sections = elf.getSections();
+			for (ElfSectionHeader section: sections) {
+				if (section.getNameAsString().equals(".sceModuleInfo.rodata")) {
+					moduleInfoAddress = Utils.getProgramAddress(section.getAddress());
 				}
 			}
-			
-			
-			if (modInfoPhdr == null) {
-				throw new RuntimeException("Cannot find non-null p_paddr in Phdrs");
-			}
-			
-			long modInfoOffset = modInfoPhdr.getPhysicalAddress() - modInfoPhdr.getOffset();
-			moduleInfoAddress = Utils.getProgramAddress(modInfoOffset);
-		} else { //New format (>= 0.940) - e_entry = offset
-			//Set guessed SDK version
-			Utils.setModuleSDKVersion(0x00940000L);
-			
-			moduleInfoAddress = Utils.getProgramAddress(elf.e_entry());
 		}
 		
+		if (moduleInfoAddress == null) { //No SceModuleInfo section - find another way
+			if (elf.e_type() == VitaElfHeader.ET_SCE_PSP2RELEXEC) {
+				//For old ELF (<= 0.931), p_phaddr of .text holds FILE OFFSET of SceModuleInfo
+				//so SceModuleInfo is at .text + p_phaddr - p_offset
+				
+				//Set guessed SDK version
+				Utils.setModuleSDKVersion(0x00931000L);
+				
+				ElfProgramHeader modInfoPhdr = null;
+				
+				ElfProgramHeader[] Phdrs = elf.getProgramHeaders();
+				for (ElfProgramHeader ph: Phdrs) {
+					if (ph.getPhysicalAddress() != 0) { //First w/ non-0 paddr is assumed to be .text
+						modInfoPhdr = ph;
+						break;
+					}
+				}
+				
+				if (modInfoPhdr == null) {
+					throw new RuntimeException("Cannot find non-null p_paddr in Phdrs");
+				}
+				
+				long modInfoOffset = modInfoPhdr.getPhysicalAddress() - modInfoPhdr.getOffset();
+				moduleInfoAddress = Utils.getProgramAddress(modInfoOffset);
+			} else { //New format (>= 0.940) - e_entry = offset
+				//Set guessed SDK version
+				Utils.setModuleSDKVersion(0x00940000L);
+				moduleInfoAddress = Utils.getProgramAddress(elf.e_entry()); //TODO: figure out why this breaks with unstripped ELF
+			}	
+		}
+		
+		
+		if (moduleInfoAddress == null) {
+			throw new RuntimeException("Cannot find SceModuleInfo of file!");
+		}
 		
 		try {
 			SceModuleInfo modInfo = new SceModuleInfo(ctx, moduleInfoAddress);
