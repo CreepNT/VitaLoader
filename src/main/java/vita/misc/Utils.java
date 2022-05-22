@@ -178,6 +178,9 @@ public class Utils {
 	}
 	
 	public static ExternalLocation addExternalFunction(String libraryName, String extLabel) throws InvalidInputException, DuplicateNameException {
+		if (libraryName == null) { //Create in "EXTERNAL" pseudolibrary
+			return utilsCtx.program.getExternalManager().addExtFunction((Namespace)null, extLabel, null, SourceType.ANALYSIS);
+		}
 		return utilsCtx.program.getExternalManager().addExtFunction(libraryName, extLabel, null, SourceType.ANALYSIS);
 	}
 	
