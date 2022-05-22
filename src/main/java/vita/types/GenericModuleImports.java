@@ -233,7 +233,7 @@ public class GenericModuleImports {
 		if (fileName != null) {
 			comment += String.format("Imported from %s\n", fileName);
 		} else {
-			comment += "Imported from unknown module!";
+			comment += "Imported from unknown module!\n";
 		}
 		
 		if (LibraryNID != -1L) {
@@ -253,7 +253,7 @@ public class GenericModuleImports {
 		if (fileName != null) {
 			comment += String.format("Imported from %s\n", fileName);
 		} else {
-			comment += "Imported from unknown module!";
+			comment += "Imported from unknown module!\n";
 		}
 		
 		if (LibraryNID != -1L) {
