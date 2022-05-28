@@ -338,7 +338,7 @@ public class SceLibEntryTable {
 			if (varNID == MODULE_INFO_NID) { //Parsing of ELFs begins by finding and parsing the SceModuleInfo, so nothing to do
 				return;
 			} else if (varNID == MODULE_SDK_VERSION_NID) {
-				Utils.createDataInNamespace(varAddr, _libName, MODULE_SDK_VERSION_VARIABLE_NAME, TypeManager.getDataType("SceUInt32"));
+				Utils.createDataInNamespace(varAddr, _libNamespace, MODULE_SDK_VERSION_VARIABLE_NAME, TypeManager.getDataType("SceUInt32"));
 				_ctx.api.setPlateComment(varAddr, "Version of the SDK the static library used to compile this module comes from");
 			} else if (varNID == PROCESS_PARAM_NID) {
 				
