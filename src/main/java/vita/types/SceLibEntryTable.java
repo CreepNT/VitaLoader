@@ -410,7 +410,7 @@ public class SceLibEntryTable {
 			return;
 		}
 		
-		Utils.createDataInNamespace(_selfAddress, _libNamespace, "static_probes", Utils.makeArray(new Pointer32DataType(SceModuleStaticProbe.toDataType()), _numStaticProbes));
+		Utils.createDataInNamespace(_staticProbesAddr, _libNamespace, "static_probes", Utils.makeArray(new Pointer32DataType(SceModuleStaticProbe.toDataType()), _numStaticProbes));
 
 		
 		BinaryReader probesArrayReader = Utils.getMemoryReader(_staticProbesAddr);
