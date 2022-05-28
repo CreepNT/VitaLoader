@@ -154,7 +154,7 @@ public class SceLibEntryTable {
 			final DataType SceUInt32 = TypeManager.getDataType("SceUInt32");
 			final DataType LIBRARY_ATTRIBUTES = TypeManager.getDataType("LIBRARY_ATTRIBUTES");
 			
-			DATATYPE = new StructureDataType(TypeManager.SCE_TYPES_CATPATH, _libName, 0);
+			DATATYPE = new StructureDataType(TypeManager.SCE_TYPES_CATPATH, STRUCTURE_NAME + String.format("_0x%X", size), 0);
 			DATATYPE.add(SceUInt8,  "size", "Size of this structure");
 			DATATYPE.add(SceUInt8,  "auxattribute", null);
 			DATATYPE.add(SceUInt16, "version", "Library version?");
