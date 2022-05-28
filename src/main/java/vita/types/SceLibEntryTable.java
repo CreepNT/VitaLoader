@@ -436,7 +436,7 @@ public class SceLibEntryTable {
 			new SceModuleStaticProbe(Utils.getProgramAddress(ptr));
 		}
 		
-		_ctx.logger.appendMsg(String.format("Module exports %d static probes.", _numStaticProbes));
+		_ctx.logger.appendMsg(String.format("Module exports %d static probe(s).", _numStaticProbes));
 		
 	}
 	
