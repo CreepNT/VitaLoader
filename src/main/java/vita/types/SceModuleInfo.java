@@ -26,7 +26,7 @@ public class SceModuleInfo {
 	public long start_entry = 0;
 	public long stop_entry = 0;
 	
-	public long tls_start = 0;
+	public long tls_top= 0;
 	public long tls_filesz = 0;
 	public long tls_memsz = 0;
 
@@ -79,7 +79,7 @@ public class SceModuleInfo {
 			}
 			
 			if (infover == 3) { //v3 fields
-				tls_start = reader.readNextUnsignedInt();
+				tls_top = reader.readNextUnsignedInt();
 				tls_filesz = reader.readNextUnsignedInt();
 				tls_memsz = reader.readNextUnsignedInt();
 			}
@@ -92,7 +92,7 @@ public class SceModuleInfo {
 				throw new RuntimeException("SceModuleInfo with infover > 6 is not supported!");
 			}
 			
-			tls_start = reader.readNextUnsignedInt();
+			tls_top = reader.readNextUnsignedInt();
 			tls_filesz = reader.readNextUnsignedInt();
 			tls_memsz = reader.readNextUnsignedInt();
 			start_entry = reader.readNextUnsignedInt();
@@ -154,7 +154,7 @@ public class SceModuleInfo {
 					STRUCTURE.add(TypeManager.getDataType("SceSize"), "tls_mem_size", "Size of the TLS section in memory");
 				}
 			} else {
-				STRUCTURE.add(IBO32, "tls_start", "Address of TLS section start");
+				STRUCTURE.add(IBO32, "tls_top", "TLS top");
 				STRUCTURE.add(TypeManager.getDataType("SceSize"), "tls_file_size", "Size of the TLS section in file");
 				STRUCTURE.add(TypeManager.getDataType("SceSize"), "tls_mem_size", "Size of the TLS section in memory");
 				STRUCTURE.add(IBO32, "start_entry", "Address of the module_start entrypoint");
