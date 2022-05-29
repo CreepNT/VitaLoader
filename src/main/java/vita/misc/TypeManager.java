@@ -144,7 +144,7 @@ public final class TypeManager {
 		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_MAIN_EXPORT", 0x8000, "Module main export (NONAME library)");
 		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_SYSCALL_EXPORT", 0x4000, "Functions of this library are exported as syscall");
 		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_LOOSE_IMPORT", 0x8, "Loosely imported library - module can boot even if library isn't found");
-		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_NOLINK_EXPORT", 0x4);
+		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_PLUGIN_LINK_EXPORT", 0x4, "nolink_export/plugin_link export");
 		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_WEAK_EXPORT", 0x2);
 		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_AUTO_EXPORT", 0x1, "Library is exported, and other modules can import from it");
 		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_NONE", 0x0);
