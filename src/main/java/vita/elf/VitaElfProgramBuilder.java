@@ -119,7 +119,7 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 
 			new VitaElfExtension().processElf(this, monitor);
 
-			processEntryPoints(monitor);
+			//processEntryPoints(monitor);
 
 			processRelocations(monitor);
 			processImports(monitor);
