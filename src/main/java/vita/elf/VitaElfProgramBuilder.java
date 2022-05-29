@@ -253,13 +253,15 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 						symSection.getNameAsString());
 					return null;
 				}	
+						
+				//HACK: for some reason, in some modules, every symbol is loaded in the default address space? (0-0xFFFFFFFF)
+				//The problem is that usually st_value is an offset in the segment instead of an absolute address.
+				//Work around by returning  (symSectionBase + st_value) if st_value is too small.
 				
-				//HACK: for some reason, every symbol is loaded in the default address space? (0-0xFFFFFFFF)
-				//The problem is that this function effectively returns (0 + st_value) instead of
-				//(symSectionBase + st_value) and now all our symbols are at stupidly low addresses.
-				//Force proper value to be returned
-				return symSectionBase.add(symOffset);
-				
+				if (symOffset < 0x81000000L) {
+					return symSectionBase.add(symOffset);
+				}
+				return symbolSpace.getTruncatedAddress(symOffset, true);
 				
 			} // else assume sections have been stripped
 			AddressSpace space = symbolSpace.getPhysicalSpace();
