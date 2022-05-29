@@ -369,9 +369,6 @@ public class VitaElfProgramBuilder extends DefaultElfProgramBuilder {
 		return address;
 	}
 	
-	
-	//TODO: override createExternalFunctionLinkage? check it out for PROPER library linking
-	
 	private boolean getBooleanOption(String optionName) {
 		for (Option option : this.options) {
 			if (option.getName().equals(optionName) && Boolean.class.isAssignableFrom(option.getValueClass())) {
