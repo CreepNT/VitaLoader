@@ -127,7 +127,7 @@ public class SceLibEntryTable {
 			_libName = libNameReader.readNextAsciiString();
 			_libNamespace = Utils.getNamespaceFromName(_libName);
 			
-			Utils.createDataInNamespace(libNameAddress, _libNamespace, _libName + "_ent_str", new TerminatedStringDataType());
+			Utils.createDataInNamespace(libNameAddress, _libNamespace, "_" + _libName + "_str", new TerminatedStringDataType());
 			
 			if (isNONAMELibrary()) {
 				Utils.appendLogMsg(String.format("WARNING: NONAME library has a name! (name=%s)", _libName));
