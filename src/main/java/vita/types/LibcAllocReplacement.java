@@ -121,7 +121,7 @@ public class LibcAllocReplacement implements StructConverter {
 		if (libc_alloc_replace_struct.getLength() != SIZE)
 			System.err.println("Unexpected " + NAME + " data type size (" + libc_alloc_replace_struct.getLength() + " != expected " + SIZE + " !)");
 		
-		Utils.createDataInNamespace(_selfAddress, Utils.getModuleName(), "__sce_libcmallocreplace", libc_alloc_replace_struct);
+		Utils.createDataInNamespace(_selfAddress, Utils.getModuleNamespace(), "__sce_libcmallocreplace", libc_alloc_replace_struct);
 		
 		//Markup functions
 		__markup_if_present(this.user_malloc_init, "user_malloc_init", F_user_malloc_init);

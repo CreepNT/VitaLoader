@@ -54,7 +54,7 @@ public class SceLibcParam_2xx {
 		_ctx = ctx;
 		_selfAddress = libcParamAddress;
 		
-		Utils.createDataInNamespace(_selfAddress, Utils.getModuleName(), "__sce_libcparam", toDataType());
+		Utils.createDataInNamespace(_selfAddress, Utils.getModuleNamespace(), "__sce_libcparam", toDataType());
 	}
 	
 	private static StructureDataType DATATYPE = null;
@@ -145,7 +145,7 @@ public class SceLibcParam_2xx {
 	
 	private void __markup_if_present(long address, String name, DataType datatype) throws Exception {
 		if (address != 0L) {
-			Utils.createDataInNamespace(Utils.getProgramAddress(address), Utils.getModuleName(), name, datatype);
+			Utils.createDataInNamespace(Utils.getProgramAddress(address), Utils.getModuleNamespace(), name, datatype);
 		}
 	}
 }

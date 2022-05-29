@@ -47,7 +47,7 @@ public class SceLibcParam_1xx {
 		pMallocReplace = reader.readNextUnsignedInt();
 		pFreeReplace = reader.readNextUnsignedInt();
 		
-		Utils.createDataInNamespace(libcParamAddress, Utils.getModuleName(), "__sce_libcparam", toDataType());
+		Utils.createDataInNamespace(libcParamAddress, Utils.getModuleNamespace(), "__sce_libcparam", toDataType());
 		
 		__markup_if_present(this.pHeapSize, "sceLibcHeapSize");
 		__markup_if_present(this.pHeapDefaultSize, "__sceLibcHeapSizeDefault");

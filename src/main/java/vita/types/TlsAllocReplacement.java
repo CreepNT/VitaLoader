@@ -53,7 +53,7 @@ public class TlsAllocReplacement {
 		}
 		
 		//Apply structure
-		Utils.createDataInNamespace(libcxxAllocReplaceAddress, Utils.getModuleName(), "__sce_libcmallocreplacefortls", toDataType());
+		Utils.createDataInNamespace(libcxxAllocReplaceAddress, Utils.getModuleNamespace(), "__sce_libcmallocreplacefortls", toDataType());
 		
 		//Markup functions
 		__markup_if_present(this.user_malloc_for_tls_init, "user_malloc_for_tls_init", F_user_malloc_for_tls_init);

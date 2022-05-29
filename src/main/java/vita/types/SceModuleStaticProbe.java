@@ -60,7 +60,7 @@ public class SceModuleStaticProbe {
 			namePart2 = libNameReader.readNextAsciiString();
 		}
 		
-		Utils.createDataInNamespace(tableAddress, Utils.getModuleName(), namePart1 + namePart2 + "_" + STRUCTURE_NAME, toDataType());
+		Utils.createDataInNamespace(tableAddress, Utils.getModuleNamespace(), namePart1 + namePart2 + "_" + STRUCTURE_NAME, toDataType());
 		
 		if (pFunc != 0L) {
 			Function func = Utils.createFunction(namePart1 + namePart2, pFunc, false);

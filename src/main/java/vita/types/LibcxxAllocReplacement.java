@@ -102,7 +102,7 @@ public class LibcxxAllocReplacement implements StructConverter {
 		if (libcxx_alloc_replace_struct.getLength() != SIZE)
 			System.err.println("Unexpected " + NAME + " data type size (" + libcxx_alloc_replace_struct.getLength() + " != expected " + SIZE + " !)");
 		
-		Utils.createDataInNamespace(_selfAddress, Utils.getModuleName(), "__sce_libcnewreplace", libcxx_alloc_replace_struct);
+		Utils.createDataInNamespace(_selfAddress, Utils.getModuleNamespace(), "__sce_libcnewreplace", libcxx_alloc_replace_struct);
 		
 		//Markup functions
 		__markup_if_present(this.user_new, "user_new", F_user_new);

@@ -38,9 +38,12 @@ public class Utils {
 		ThumbTMode = new RegisterValue(TMode, BigInteger.ONE);
 	}
 	
-	
-	public static String getModuleName() {
-		return utilsCtx.moduleName;
+	public static Namespace getModuleNamespace() throws DuplicateNameException, InvalidInputException {
+		if (utilsCtx.moduleName == null) {
+			throw new RuntimeException("NO MODULE NAME!!!!");
+		}
+		
+		return getNamespaceFromName(utilsCtx.moduleName + "_module");
 	}
 	
 	

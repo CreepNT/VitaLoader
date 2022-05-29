@@ -139,7 +139,7 @@ public class SceLibEntryTable {
 			_libNamespace = Utils.getNamespaceFromName(_libName);
 		} else {
 			_libName = "NONAME";
-			_libNamespace = Utils.getNamespaceFromName(Utils.getModuleName());
+			_libNamespace = Utils.getModuleNamespace();
 		}
 				
 		Utils.createDataInNamespace(_selfAddress, _libNamespace, STRUCTURE_NAME, this.toDataType());
