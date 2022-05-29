@@ -142,7 +142,7 @@ public final class TypeManager {
 		//SCE_LIBRARY_ATTR prefix isn't official(?)
 		LIBRARY_ATTRIBUTES  = new EnumDataType(SCE_TYPES_CATPATH, "LIBRARY_ATTRIBUTES", 2);
 		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_MAIN_EXPORT", 0x8000, "Module main export (NONAME library)");
-		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_USER_IMPORTABLE", 0x4000, "Functions of this library are user-importable (syscall export)");
+		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_SYSCALL_EXPORT", 0x4000, "Functions of this library are exported as syscall");
 		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_WEAK_IMPORT", 0x8, "Weak import library - module can boot even if library isn't found");
 		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_NOLINK_EXPORT", 0x4);
 		LIBRARY_ATTRIBUTES.add("SCE_LIBRARY_ATTR_WEAK_EXPORT", 0x2);

@@ -448,8 +448,8 @@ public class SceLibEntryTable {
 		}
 		
 		comment += String.format("Function NID: 0x%08X\n", funcNid);
-		if (isUserImportableLibrary()) {
-			comment += "User-importable function\n";
+		if (isSyscallExportLibrary()) {
+			comment += "Syscall exported function\n";
 		}
 		comment += String.format("--- %s_%08X ---", _libName, funcNid);
 		
@@ -470,7 +470,7 @@ public class SceLibEntryTable {
 		return comment;
 	}
 	
-	private boolean isUserImportableLibrary() {
+	private boolean isSyscallExportLibrary() {
 		return ((attributes & 0x4000) != 0);
 	}
 	
