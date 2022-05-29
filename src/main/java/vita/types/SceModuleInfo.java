@@ -115,7 +115,10 @@ public class SceModuleInfo {
 			attr.add("SCE_MODULE_ATTR_CANT_STOP", 		0x0001, "Resident module - cannot be stopped or unloaded.");
 			attr.add("SCE_MODULE_ATTR_EXCLUSIVE_LOAD",  0x0002, "Only one instance of this module can be loaded at a time.");
 			attr.add("SCE_MODULE_ATTR_EXCLUSIVE_START", 0x0004, "Only one instance of this module can be started at a time.");
-			attr.add("SCE_MODULE_ATTR_DEBUG", 			0x8000, "Debug");
+			attr.add("SCE_MODULE_ATTR_CAN_RESTART",     0x0008, "?Module can be restarted after being stopped?");
+			attr.add("SCE_MODULE_ATTR_CAN_RELOCATE",    0x0010, "?Module can be relocated?");
+			attr.add("SCE_MODULE_ATTR_CANT_SHARE",      0x0020, "?Module cannot be shared?");
+			attr.add("SCE_MODULE_ATTR_DEBUG", 			0x0800, "Debug");
 			MODULE_ATTRIBUTES = attr;
 		}
 		
