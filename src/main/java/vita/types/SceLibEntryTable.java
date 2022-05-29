@@ -338,7 +338,7 @@ public class SceLibEntryTable {
 				return;
 			} else if (varNID == MODULE_SDK_VERSION_NID) {
 				Utils.createDataInNamespace(varAddr, _libNamespace, "__crt0_main_sdk_version_var", TypeManager.getDataType("SceUInt32"));
-				_ctx.api.setPlateComment(varAddr, "Version of the SDK the static library used to compile this module comes from");
+				_ctx.api.setPlateComment(varAddr, "Version of the SDK this module was linked against");
 			} else if (varNID == PROCESS_PARAM_NID) {
 				
 				new SceProcessParam(_ctx, varAddr).apply();

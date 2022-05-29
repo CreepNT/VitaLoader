@@ -79,7 +79,7 @@ public class SceProcessParam {
 		dt.add(SceUInt32, "size", "Size of this structure");
 		dt.add(Utils.makeArray(CharDataType.dataType, 4), "magic", "Structure magic - 'PSP2'");
 		dt.add(SceUInt32, "version", "Version of this structure");
-		dt.add(SceUInt32, "SDKVersion", "SDK version this app was linked against");
+		dt.add(SceUInt32, "SDKVersion", "Version of the SDK this module was linked against");
 		dt.add(new PointerDataType(CharDataType.dataType), "pUserMainThreadName", "Pointer to main thread name");
 		dt.add(new PointerDataType(SceUInt32), "pUserMainThreadPriority", "Pointer to main thread priority");
 		dt.add(new PointerDataType(SceUInt32), "pUserMainThreadStackSize", "Pointer to main thread stack size");
