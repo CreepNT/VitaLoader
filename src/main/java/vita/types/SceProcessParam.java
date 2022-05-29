@@ -26,8 +26,8 @@ public class SceProcessParam {
 	public long sceProcessName;
 	public long sceKernelPreloadModuleInhibit;
 	public long sceUserMainThreadCpuAffinityMask;
-	public long __sce_libcparam;
 	
+	public long __sce_libcparam = 0; //Not present in 0.930
 	public long unk30 = 0; //Not present in 0.945
 
 	
@@ -53,16 +53,22 @@ public class SceProcessParam {
 		sceProcessName = reader.readNextUnsignedInt();
 		sceKernelPreloadModuleInhibit = reader.readNextUnsignedInt();
 		sceUserMainThreadCpuAffinityMask = reader.readNextUnsignedInt();
-		__sce_libcparam = reader.readNextUnsignedInt();
+		
 		
 		//We're gonna cheat a bit - since we now read the SDK version
 		//set it directly to ensure that the following check is precise
 		Utils.setModuleSDKVersion(sdkVersion);
 		
+		if (size < 0x2C || size > 0x34) {
+			throw new RuntimeException("Unsupported SceProcessParam size " + size);
+		}
+		
+		if (size >= 0x30) {
+			__sce_libcparam = reader.readNextUnsignedInt();
+		}
+		
 		if (size == 0x34) {
 			unk30 = reader.readNextUnsignedInt();
-		} else if (size != 0x30) {
-			throw new RuntimeException("Unsupported SceProcessParam size " + size);
 		}
 	}
 	
@@ -81,7 +87,10 @@ public class SceProcessParam {
 		dt.add(new PointerDataType(CharDataType.dataType), "pProcessName", "Pointer to process name");
 		dt.add(new PointerDataType(SceUInt32), "pKernelPreloadModuleInhibit", "Pointer to module preload inibition variable");
 		dt.add(new PointerDataType(SceUInt32), "pUserMainThreadCpuAffinityMask", "Pointer to main thread CPU affinity mask");
-		dt.add(Pointer32DataType.dataType, "pLibcParam", "Pointer to SceLibc parameters");
+		
+		if (size >= 0x30) {
+			dt.add(Pointer32DataType.dataType, "pLibcParam", "Pointer to SceLibc parameters");
+		}
 		
 		if (size == 0x34) {
 			dt.add(SceUInt32, "unk30", null);
