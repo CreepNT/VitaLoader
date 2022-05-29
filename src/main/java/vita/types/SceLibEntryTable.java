@@ -58,20 +58,19 @@ public class SceLibEntryTable {
 	//Structure datatype of this instance
 	private StructureDataType DATATYPE = null;
 	
-	private static final String MODULE_START_FUNC_NAME 	= "module_start";
-	private static final String MODULE_STOP_FUNC_NAME 	= "module_stop";
-	private static final String MODULE_EXIT_FUNC_NAME 	= "module_exit";
-	private static final String MODULE_BOOTSTART_FUNC_NAME = "module_bootstart";
 	private static final Map<Integer, String> NAMELESS_FUNC_EXPORTS = Map.of(
-			0x935CD196, MODULE_START_FUNC_NAME,
-			0x79F8E492, MODULE_STOP_FUNC_NAME,
-			0x913482A9, MODULE_EXIT_FUNC_NAME,
-			0x5C424D40, MODULE_BOOTSTART_FUNC_NAME
+			0x935CD196, "module_start",
+			0x79F8E492, "module_stop",
+			0x913482A9, "module_exit",
+			0x5C424D40, "module_bootstart",
+			0xE640E30C, "ModuleEntryType0",
+			0x4F0EE5BD, "ModuleEntryType1",
+			0xDF0212B9, "ModuleEntryType2",
+			0xDD42FA37, "module_entry_DD42FA37"
 	);
 	
 	private static final long MODULE_SDK_VERSION_NID 	= 0x936C8A78L; //SceUInt32
 	private static final long MODULE_INFO_NID 			= 0x6C2224BAL; //SceModuleInfo
-	private static final String MODULE_SDK_VERSION_VARIABLE_NAME = "__crt0_main_sdk_version_var";
 	
 	private static final long PROCESS_PARAM_NID 		= 0x70FBA1E7L; //SceProcessParam
 	
@@ -133,15 +132,15 @@ public class SceLibEntryTable {
 			if (isNONAMELibrary()) {
 				Utils.appendLogMsg(String.format("WARNING: NONAME library has a name! (name=%s)", _libName));
 			}
+			_libNamespace = Utils.getNamespaceFromName(_libName);
 		} else if (!isNONAMELibrary()) {
 			Utils.appendLogMsg(String.format("WARNING: Unnamed library found (NID = 0x%08X)", libraryNID));
 			_libName = String.format("UNNAMED_%08X", libraryNID);
+			_libNamespace = Utils.getNamespaceFromName(_libName);
 		} else {
 			_libName = "NONAME";
+			_libNamespace = Utils.getNamespaceFromName(Utils.getModuleName());
 		}
-		
-		_libNamespace = Utils.getNamespaceFromName(_libName);
-		
 				
 		Utils.createDataInNamespace(_selfAddress, _libNamespace, STRUCTURE_NAME, this.toDataType());
 	}
@@ -338,7 +337,7 @@ public class SceLibEntryTable {
 			if (varNID == MODULE_INFO_NID) { //Parsing of ELFs begins by finding and parsing the SceModuleInfo, so nothing to do
 				return;
 			} else if (varNID == MODULE_SDK_VERSION_NID) {
-				Utils.createDataInNamespace(varAddr, _libNamespace, MODULE_SDK_VERSION_VARIABLE_NAME, TypeManager.getDataType("SceUInt32"));
+				Utils.createDataInNamespace(varAddr, _libNamespace, "__crt0_main_sdk_version_var", TypeManager.getDataType("SceUInt32"));
 				_ctx.api.setPlateComment(varAddr, "Version of the SDK the static library used to compile this module comes from");
 			} else if (varNID == PROCESS_PARAM_NID) {
 				

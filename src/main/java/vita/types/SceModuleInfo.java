@@ -106,7 +106,7 @@ public class SceModuleInfo {
 		_ctx.moduleName = modname;
 		
 		//There are some cases in which module name and one exported library name are the same - maybe add a "Module" suffix?
-		Utils.createDataInNamespace(_selfAddress, "NONAME", "__sce_moduleinfo", this.toDataType());
+		Utils.createDataInNamespace(_selfAddress, Utils.getModuleName(), "__sce_moduleinfo", this.toDataType());
 	}
 	
 	public DataType toDataType() {

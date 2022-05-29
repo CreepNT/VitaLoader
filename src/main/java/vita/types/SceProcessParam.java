@@ -94,7 +94,7 @@ public class SceProcessParam {
 	public void apply() throws Exception {
 		final DataType SceUInt32 = TypeManager.getDataType("SceUInt32");
 		
-		Utils.createDataInNamespace(_selfAddress, "NONAME", "__sce_process_param", toDataType());
+		Utils.createDataInNamespace(_selfAddress, Utils.getModuleName(), "__sce_process_param", toDataType());
 		
 		markup_string_if_present(this.sceUserMainThreadName, "sceUserMainThreadName");
 		markup_if_present(this.sceUserMainThreadPriority, "sceUserMainThreadPriority", SceUInt32);
