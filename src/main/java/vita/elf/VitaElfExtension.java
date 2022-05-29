@@ -112,35 +112,60 @@ public class VitaElfExtension extends ElfExtension {
 			}
 		}
 		
+		/*
+
+		 *	For ET SCE RELEXEC executables, the segment containing sce module info is indexed by
+		 *	the upper two bits of e entry of the ELF header. The structure is stored at the base of the
+		 *	segment plus the offset defined by the bottom 30 bits of e entry.
+		 */
+
+		if (elf.e_type() == VitaElfHeader.ET_SCE_PSP2RELEXEC) { //Only 0.931 is known to use this format
+			Utils.setModuleSDKVersion(0x00931000L);
+		} else {
+			Utils.setModuleSDKVersion(0x00940000L); //Very low estimate - may be bumped up later on and should work fine overall
+		}
+		
+		ElfProgramHeader[] Phdrs = elf.getProgramHeaders();
+		
 		if (moduleInfoAddress == null) { //No SceModuleInfo section - find another way
-			if (elf.e_type() == VitaElfHeader.ET_SCE_PSP2RELEXEC) {
-				//For old ELF (<= 0.931), p_phaddr of .text holds FILE OFFSET of SceModuleInfo
-				//so SceModuleInfo is at .text + p_phaddr - p_offset
+			/*
+			 * For ET_SCE_PSP2RELEXEC, module info is always stored in the first segment.
+			 * The location of the SceModuleInfo is stored as a FILE OFFSET in the first segment's p_paddr.
+			 * 
+			 * Thus, its location in memory is p_vaddr + p_paddr - p_offset.
+			 * 
+			 * The same applies to *some* ET_SCE_EXEC files, too - so try this first.
+			 */
+			ElfProgramHeader modInfoPhdr = null;
+			for (ElfProgramHeader ph: Phdrs) {
+				if (ph.getPhysicalAddress() != 0) { //First w/ non-0 paddr is assumed to be .text
+					modInfoPhdr = ph;
+					break;
+				}
+			}
+			
+			if (modInfoPhdr != null) {
+				moduleInfoAddress = Utils.getProgramAddress(modInfoPhdr.getVirtualAddress() + modInfoPhdr.getPhysicalAddress() - modInfoPhdr.getOffset());
+			} else {
+				//No luck finding it - try the other method.
+				/*
+				 * For ET_SCE_RELEXEC and some ET_SCE_EXEC, all information is encoded in the EHdr.e_entry field.
+				 * The top two bits encode the segment in which it resides, and the bottom 30 bits are the offset within this segment.
+				 * 
+				 * Thus, the location of the SceModuleInfo is PHdrs[e_entry >> 30].p_vaddr + (e_entry & 0x3FFFFFFF).
+				 */
 				
-				//Set guessed SDK version
-				Utils.setModuleSDKVersion(0x00931000L);
+				int moduleInfoSegment = (int)((elf.e_entry() >> 30L) & 0x3L);
+				long moduleInfoOffset = elf.e_entry() & 0x3FFFFFFFL;
 				
-				ElfProgramHeader modInfoPhdr = null;
-				
-				ElfProgramHeader[] Phdrs = elf.getProgramHeaders();
-				for (ElfProgramHeader ph: Phdrs) {
-					if (ph.getPhysicalAddress() != 0) { //First w/ non-0 paddr is assumed to be .text
-						modInfoPhdr = ph;
-						break;
-					}
+				if (moduleInfoSegment > Phdrs.length) {
+					throw new RuntimeException(String.format("Malformed ELF: e_entry = 0x%08lX indicates SceModuleInfo resides in segment %d, but there are only %d segments!", 
+									elf.e_entry(), moduleInfoSegment, Phdrs.length));
 				}
 				
-				if (modInfoPhdr == null) {
-					throw new RuntimeException("Cannot find non-null p_paddr in Phdrs");
-				}
-				
-				long modInfoOffset = modInfoPhdr.getPhysicalAddress() - modInfoPhdr.getOffset();
-				moduleInfoAddress = Utils.getProgramAddress(modInfoOffset);
-			} else { //New format (>= 0.940) - e_entry = offset
-				//Set guessed SDK version
-				Utils.setModuleSDKVersion(0x00940000L);
-				moduleInfoAddress = Utils.getProgramAddress(elf.e_entry()); //TODO: figure out why this breaks with unstripped ELF
-			}	
+				modInfoPhdr = Phdrs[moduleInfoSegment];
+				moduleInfoAddress = Utils.getProgramAddress(modInfoPhdr.getVirtualAddress() + moduleInfoOffset);				
+			}
 		}
 		
 		
