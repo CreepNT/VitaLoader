@@ -125,7 +125,7 @@ public class SceModuleInfo {
 		if (STRUCTURE == null) {
 			final DataType IBO32 = TypeManager.IBO32;
 			
-			STRUCTURE = new StructureDataType(TypeManager.LOADER_CATPATH, STRUCTURE_NAME, 0);
+			STRUCTURE = new StructureDataType(TypeManager.SCE_TYPES_CATPATH, STRUCTURE_NAME, 0);
 			STRUCTURE.add(MODULE_ATTRIBUTES, "modattr", "Module attributes");
 			STRUCTURE.add(Utils.makeArray(TypeManager.getDataType("SceUInt8"), 2), "modver", "Module version ([0] = major, [1] = minor)");
 			STRUCTURE.add(Utils.makeArray(CharDataType.dataType, 27), "modname", "Module name");
