@@ -9,7 +9,6 @@ import ghidra.program.model.listing.ProgramContext;
 import ghidra.program.flatapi.FlatProgramAPI;
 import ghidra.util.exception.CancelledException;
 
-
 import ghidra.app.util.bin.format.elf.ElfHeader;
 import ghidra.program.model.data.DataTypeManager;
 import ghidra.app.util.bin.format.elf.ElfLoadHelper;
@@ -138,7 +137,8 @@ public class VitaElfExtension extends ElfExtension {
 			 */
 			ElfProgramHeader modInfoPhdr = null;
 			for (ElfProgramHeader ph: Phdrs) {
-				if (ph.getPhysicalAddress() != 0) { //First w/ non-0 paddr is assumed to be .text
+				long p_paddr = ph.getPhysicalAddress();
+				if ((p_paddr != 0) && p_paddr < ph.getFileSize()) { //First segment with non-zero p_paddr that can be an offset in segment is assumed to be good.
 					modInfoPhdr = ph;
 					break;
 				}
