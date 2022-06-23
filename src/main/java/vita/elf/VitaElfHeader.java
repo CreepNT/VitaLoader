@@ -36,6 +36,7 @@ public class VitaElfHeader extends ElfHeader {
 	
 	public static final short ET_REL = (short)0x0001;
 	public static final short ET_EXEC = (short)0x0002;
+	public static final short ET_CORE = (short)0x0004;
 	public static final short ET_SCE_EXEC = (short)0xFE00;
 	public static final short ET_SCE_RELEXEC = (short)0xFE04;
 	public static final short ET_SCE_PSP2RELEXEC = (short)0xFFA5;
@@ -43,6 +44,7 @@ public class VitaElfHeader extends ElfHeader {
 	public static final Map<Short, ExecutableInfo> EXECUTABLE_TYPES = Map.of(
 			ET_REL, new ExecutableInfo(ET_REL, "ET_REL", "Standard relocatable ELF", true),
 			ET_EXEC, new ExecutableInfo(ET_EXEC, "ET_EXEC", "Standard executable ELF", false),
+			ET_CORE, new ExecutableInfo(ET_CORE, "ET_CORE", "Standard ELF corefile", false),
 			ET_SCE_EXEC, new ExecutableInfo(ET_SCE_EXEC, "ET_SCE_RELEXEC", "SCE Executable", false),
 			ET_SCE_RELEXEC, new ExecutableInfo(ET_SCE_RELEXEC, "ET_SCE_RELEXEC", "SCE Relocatable Executable", true),
 			ET_SCE_PSP2RELEXEC, new ExecutableInfo(ET_SCE_PSP2RELEXEC, "ET_SCE_PSP2RELEXEC", "PSP2 Relocatable Executable", true) //Guessed name - present in old modules
