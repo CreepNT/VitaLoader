@@ -50,7 +50,23 @@ public class SceModuleInfo {
 		attributes = reader.readNextShort();
 		version[0] = reader.readNextByte();
 		version[1] = reader.readNextByte();
-		modname = reader.readNextAsciiString(27);
+		
+		byte[] rawModname = reader.readNextByteArray(27);
+		boolean isValidModname = false;
+		for (byte b: rawModname) {
+			if (b == '\0') {
+				isValidModname = true;
+				break;
+			}
+		}
+		
+		if (!isValidModname) {
+			throw new RuntimeException("SceModuleInfo is malformed! Are you sure this is a valid PS Vita ELF?");
+		}
+		
+		modname = new String(rawModname);
+
+		
 		infover = reader.readNextByte();
 
 		//Fields common to all versions
@@ -59,6 +75,10 @@ public class SceModuleInfo {
 		libent_btm = reader.readNextUnsignedInt();
 		libstub_top = reader.readNextUnsignedInt();
 		libstub_btm = reader.readNextUnsignedInt();
+		
+		if (gp_value != 0) {
+			_ctx.logger.appendMsg(String.format("Unexpected gp_value 0x%08lX - are you sure this is a Vita ELF?", gp_value));
+		}
 		
 		if (infover == 0) {
 			throw new RuntimeException("SceModuleInfo with infover 0 is not supported!");
