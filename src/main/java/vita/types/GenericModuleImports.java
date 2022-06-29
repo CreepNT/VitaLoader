@@ -97,7 +97,7 @@ public class GenericModuleImports {
 	}
 	
 	public void process() throws Exception {
-		String moduleName = NameUtil.getModuleNameFromLibraryName(LibraryName);
+		String moduleName = _ctx.nidDb.getModuleNameForLibrary(LibraryName);
 		if (moduleName != null) {
 				fileName = NameUtil.getFileNameFromModuleName(moduleName);
 		}
@@ -125,7 +125,7 @@ public class GenericModuleImports {
 				long funcNid =  Integer.toUnsignedLong(funcNidTableIntBuffer.get(i));
 				long funcAddr =  Integer.toUnsignedLong(funcEntTableIntBuffer.get(i));
 				
-				String funcName = _ctx.nidDb.getFunctionName(LibraryNID, funcNid);
+				String funcName = _ctx.nidDb.getFunctionName(LibraryName, LibraryNID, funcNid);
 				if (funcName == null) {
 					funcName = String.format("%s_%08X", LibraryName, funcNid);
 				}
@@ -172,7 +172,7 @@ public class GenericModuleImports {
 				Address varAddr = Utils.getProgramAddress(varEnt);
 				
 				String defaultName = String.format("%s_%08X", LibraryName, varNid);
-				String dbName = _ctx.nidDb.getVariableName(LibraryNID, varNid);
+				String dbName = _ctx.nidDb.getVariableName(LibraryName, LibraryNID, varNid);
 				
 				_ctx.api.clearListing(varAddr);
 				if (dbName != null) { //Use database name as primary if it exists
@@ -211,7 +211,7 @@ public class GenericModuleImports {
 				Address varAddr = Utils.getProgramAddress(varEnt);
 				
 				String defaultName = String.format("%s_%08X", LibraryName, varNid);
-				String dbName = _ctx.nidDb.getVariableName(LibraryNID, varNid);
+				String dbName = _ctx.nidDb.getVariableName(LibraryName, LibraryNID, varNid);
 				
 				_ctx.api.clearListing(varAddr);
 				if (dbName != null) { //Use database name as primary if it exists

@@ -20,7 +20,7 @@ import vita.types.SceModuleInfo;
 
 import vita.misc.TypeManager;
 import vita.misc.Utils;
-import vita.misc.NIDDatabase;
+import vita.misc.DatabaseBroker;
 
 public class VitaElfExtension extends ElfExtension {
 	//TODO: Fix Super Duper Ugly Hack
@@ -39,7 +39,7 @@ public class VitaElfExtension extends ElfExtension {
 		public final ProgramContext progContext;
 		
 		//public final TypeDatabase typeDb;
-		public final NIDDatabase nidDb;
+		public final DatabaseBroker nidDb;
 		
 		public String moduleName; //Added by SceModuleInfo in its constructor
 		public long SDKVersion = 0;
@@ -56,7 +56,7 @@ public class VitaElfExtension extends ElfExtension {
 			this.dtm 		= this.program.getDataTypeManager();
 			this.api		= new FlatProgramAPI(this.program);
 			
-			this.nidDb = new NIDDatabase(this);
+			this.nidDb = new DatabaseBroker(this);
 			this.progContext = program.getProgramContext();
 			
 

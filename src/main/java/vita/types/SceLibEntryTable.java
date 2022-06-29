@@ -264,7 +264,7 @@ public class SceLibEntryTable {
 		Address funcAddr = Utils.getProgramAddress(functionEntry & ~1L); //LSB is always clear for a function
 		
 		if (!isNONAMELibrary()) {
-			dbName = _ctx.nidDb.getFunctionName(libraryNID, functionNid);
+			dbName = _ctx.nidDb.getFunctionName(_libName, libraryNID, functionNid);
 		} else {
 			if (NAMELESS_FUNC_EXPORTS.containsKey((int)functionNid)) {
 				dbName = NAMELESS_FUNC_EXPORTS.get((int)functionNid);
@@ -311,7 +311,7 @@ public class SceLibEntryTable {
 		Address varAddr = Utils.getProgramAddress(rawVarAddress);
 		if (!isNONAMELibrary()) {
 			String defaultName = String.format("%s_%08X", _libName, varNID);
-			String dbName = _ctx.nidDb.getVariableName(libraryNID, rawVarAddress);
+			String dbName = _ctx.nidDb.getVariableName(_libName, libraryNID, rawVarAddress);
 			
 			if (_ctx.api.getSymbolAt(varAddr) == null) { //No symbol exists - create new
 				if (dbName != null) { //Use database name as primary label, then default as secondary
