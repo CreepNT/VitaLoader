@@ -435,8 +435,11 @@ public class SceLibEntryTable {
 			new SceModuleStaticProbe(Utils.getProgramAddress(ptr));
 		}
 		
-		_ctx.logger.appendMsg(String.format("Module exports %d static probe(s).", _numStaticProbes));
-		
+		if (_numStaticProbes > 1) {
+			_ctx.logger.appendMsg(String.format("Module exports %d static probes.", _numStaticProbes));
+		} else {
+			_ctx.logger.appendMsg("Module exports 1 static probe.");
+		}
 	}
 	
 	private String makeFunctionPlateComment(long funcNid) {
