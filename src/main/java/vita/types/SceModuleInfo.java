@@ -51,7 +51,7 @@ public class SceModuleInfo {
 		version[0] = reader.readNextByte();
 		version[1] = reader.readNextByte();
 		
-		byte[] rawModname = reader.readNextByteArray(27);
+		byte[] rawModname = reader.readByteArray(reader.getPointerIndex(), 27);
 		int nulIdx = -1;
 		for (int i = 0; i < rawModname.length; i++) {
 			if (rawModname[i] == '\0') {
@@ -63,10 +63,8 @@ public class SceModuleInfo {
 		if (nulIdx == -1) {
 			throw new RuntimeException("SceModuleInfo is malformed! Are you sure this is a valid PS Vita ELF?");
 		}
-		
-		//reader.setPointerIndex(reader.getPointerIndex() - 27 * SIZEOF_BYTE);
-		modname = rawModname.toString();
 
+		modname = reader.readNextAsciiString(27);
 		
 		infover = reader.readNextByte();
 
