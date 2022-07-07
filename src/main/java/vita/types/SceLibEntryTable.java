@@ -16,6 +16,7 @@ import ghidra.program.model.symbol.Namespace;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.data.StructureDataType;
 import ghidra.program.model.data.TerminatedStringDataType;
+import ghidra.program.model.data.UnsignedIntegerDataType;
 import ghidra.program.model.data.Pointer32DataType;
 
 import vita.misc.TypeManager;
@@ -74,8 +75,8 @@ public class SceLibEntryTable {
 	
 	private static final long PROCESS_PARAM_NID 		= 0x70FBA1E7L; //SceProcessParam
 	
-	private static final long STATIC_PROBES_INFO_NID = 0x9318D9DDL;
-	private static final long STATIC_PROBES_ARRAY_NID = 0x8CE938B1L;
+	private static final long MODULE_DTRACE_PROBES_INFO_NID = 0x9318D9DDL;
+	private static final long MODULE_DTRACE_PROBES_NID = 0x8CE938B1L;
 	
 	//SceModuleThreadParameter
 	private static final long MODULE_START_THREAD_PARAMETER_NID = 0x1A9822A4L;
@@ -258,6 +259,13 @@ public class SceLibEntryTable {
 	
 	//Private routines used for processing
 	private void processFunction(long functionNid, long functionEntry) throws Exception {
+		//HACK: in 0.931, some modules have static probes exported as functions
+		//Redirect to variable if detected
+		if (isNONAMELibrary() && (functionNid == MODULE_DTRACE_PROBES_INFO_NID || functionNid == MODULE_DTRACE_PROBES_NID)) {
+			processVariable(functionNid, functionEntry, false);
+			return;
+		}
+		
 		final String defaultName = String.format("%s_%08X", _libName, functionNid);
 		String dbName = null;
 		String funcComment = makeFunctionPlateComment(functionNid);
@@ -343,9 +351,9 @@ public class SceLibEntryTable {
 				
 				new SceProcessParam(_ctx, varAddr).apply();
 				
-			} else if (varNID == STATIC_PROBES_INFO_NID) {
+			} else if (varNID == MODULE_DTRACE_PROBES_INFO_NID) {
 				
-				Utils.createDataInNamespace(varAddr, _libNamespace, "static_probes_info", getStaticProbesInfoDataType());
+				Utils.createDataInNamespace(varAddr, _libNamespace, "module_dtrace_probes_info", getProbesInfoDatatype());
 				
 				BinaryReader br = Utils.getMemoryReader(varAddr);
 				long piVersion = br.readNextUnsignedInt();
@@ -355,7 +363,7 @@ public class SceLibEntryTable {
 				}
 				_numStaticProbes = (int)br.readNextUnsignedInt();
 				
-			} else if (varNID == STATIC_PROBES_ARRAY_NID) {
+			} else if (varNID == MODULE_DTRACE_PROBES_NID) {
 				
 				_staticProbesAddr = varAddr;
 				
@@ -379,19 +387,17 @@ public class SceLibEntryTable {
 /*
  * Gadgets
  */
-	private static StructureDataType STATIC_PROBES_INFO_DT = null;
-	private DataType getStaticProbesInfoDataType() {
-		if (STATIC_PROBES_INFO_DT != null) {
-			return STATIC_PROBES_INFO_DT;
+	private static StructureDataType SDT_PROBES_INFO_TYPE = null;
+	private DataType getProbesInfoDatatype() {
+		if (SDT_PROBES_INFO_TYPE == null) {
+			final DataType uint = UnsignedIntegerDataType.dataType;
+			
+			SDT_PROBES_INFO_TYPE = new StructureDataType(TypeManager.SCE_TYPES_CATPATH, "sdt_probes_info_t", 0);
+			SDT_PROBES_INFO_TYPE.add(uint, "version", "");
+			SDT_PROBES_INFO_TYPE.add(uint, "count", "");
 		}
 		
-		final DataType SceUInt32 = TypeManager.getDataType("SceUInt32");
-		
-		STATIC_PROBES_INFO_DT = new StructureDataType(TypeManager.SCE_TYPES_CATPATH, "SceModuleStaticProbesInfo", 0);
-		STATIC_PROBES_INFO_DT.add(SceUInt32, "version", "Version of the static probes");
-		STATIC_PROBES_INFO_DT.add(SceUInt32, "numProbes", "Number of static probes exported");
-		
-		return STATIC_PROBES_INFO_DT;
+		return SDT_PROBES_INFO_TYPE;
 	}
 	
 	private void processStaticProbes() throws Exception {
@@ -409,7 +415,7 @@ public class SceLibEntryTable {
 			return;
 		}
 		
-		Utils.createDataInNamespace(_staticProbesAddr, _libNamespace, "static_probes", Utils.makeArray(new Pointer32DataType(SceModuleStaticProbe.toDataType()), _numStaticProbes));
+		Utils.createDataInNamespace(_staticProbesAddr, _libNamespace, "module_dtrace_probes", Utils.makeArray(new Pointer32DataType(sdt_probedesc_t.toDataType()), _numStaticProbes));
 
 		
 		BinaryReader probesArrayReader = Utils.getMemoryReader(_staticProbesAddr);
@@ -432,7 +438,7 @@ public class SceLibEntryTable {
 		probesArrayReader.setPointerIndex(0);
 		for (int i = 0; i < _numStaticProbes; i++) {
 			long ptr = probesArrayReader.readNextUnsignedInt();
-			new SceModuleStaticProbe(Utils.getProgramAddress(ptr));
+			new sdt_probedesc_t(Utils.getProgramAddress(ptr));
 		}
 		
 		if (_numStaticProbes > 1) {
