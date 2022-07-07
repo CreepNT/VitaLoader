@@ -41,14 +41,14 @@ public class SceLibEntryTable {
 	public long libraryNID; //Not present in 0x1C
 	public long pLibName;
 	//Tables are organized as follow: first functions, then variables, then TLS variables.
-	//On old firmware, library NID is after the last entry in entry table 
+	//On 0.931, library NID is 8 bytes before the library name.
 	public long pNidTbl;
 	public long pEntryTbl;
 
 	private final ProcessingContext _ctx; 	//Processing context
 	private final Address _selfAddress; 	//Address this structure is located at
 	
-	private final String 	_libName; 		//Name of this library
+	private final String _libName; 		//Name of this library
 	private Namespace _libNamespace; 	//Namespace used to store library objects
 	
 	
@@ -109,13 +109,20 @@ public class SceLibEntryTable {
 		
 		if (size == 0x20) {
 			libraryNID = reader.readNextUnsignedInt();
+			pLibName = reader.readNextUnsignedInt();
 		} else if (size == 0x1C) {
-			libraryNID = 0xFFFFFFFFL;
+			pLibName = reader.readNextUnsignedInt();
+			if (pLibName != 0L) {
+				Address pLibNID = Utils.getProgramAddress(pLibName - 8);
+				BinaryReader NIDReader = Utils.getMemoryReader(pLibNID);
+				libraryNID = NIDReader.readNextUnsignedInt();
+			} else {
+				libraryNID = 0L; //NONAME library
+			}
 		} else {
 			throw new RuntimeException(String.format("Unknown SceModuleExports with size 0x%08X!", size));
 		}
 		
-		pLibName 	= reader.readNextUnsignedInt();
 		pNidTbl 	= reader.readNextUnsignedInt();
 		pEntryTbl 	= reader.readNextUnsignedInt();
 
