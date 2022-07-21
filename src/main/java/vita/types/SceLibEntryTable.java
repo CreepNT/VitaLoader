@@ -149,7 +149,7 @@ public class SceLibEntryTable {
 			_libName = "NONAME";
 			_libNamespace = Utils.getModuleNamespace();
 		}
-				
+		
 		Utils.createDataInNamespace(_selfAddress, _libNamespace, STRUCTURE_NAME, this.toDataType());
 	}
 
@@ -335,7 +335,7 @@ public class SceLibEntryTable {
 				} else {
 					_ctx.api.createLabel(varAddr, defaultName, true, SourceType.ANALYSIS);
 				}
-				_ctx.api.setPlateComment(varAddr, makeVariablePlateComment(varNID, isTLS));
+				Utils.setPlateComment(varAddr, makeVariablePlateComment(varNID, isTLS));
 				
 			} else { //Symbol exists - append new labels
 				if (dbName != null) { //Use database name as primary label, then default as secondary
@@ -344,16 +344,21 @@ public class SceLibEntryTable {
 				} else {
 					_ctx.api.createLabel(varAddr, defaultName, true, SourceType.ANALYSIS);
 				}
-				_ctx.api.setPlateComment(varAddr, _ctx.api.getPlateComment(varAddr) + "\n\n" + makeVariablePlateComment(varNID, isTLS));
+				String finalComment = _ctx.api.getPlateComment(varAddr);
+				if (finalComment != null) {
+					finalComment += "\n\n" + makeVariablePlateComment(varNID, isTLS);
+				} else {
+					finalComment = makeVariablePlateComment(varNID, isTLS);
+				}
+				Utils.setPlateComment(varAddr, finalComment);
 			}
 		} else { //NONAME library
 			//TODO make this cleaner
-			
 			if (varNID == MODULE_INFO_NID) { //Parsing of ELFs begins by finding and parsing the SceModuleInfo, so nothing to do
 				return;
 			} else if (varNID == MODULE_SDK_VERSION_NID) {
 				Utils.createDataInNamespace(varAddr, _libNamespace, "__crt0_main_sdk_version_var", TypeManager.getDataType("SceUInt32"));
-				_ctx.api.setPlateComment(varAddr, "Version of the SDK this module was linked against");
+				Utils.setPlateComment(varAddr, "Version of the SDK this module was linked against");
 			} else if (varNID == PROCESS_PARAM_NID) {
 				
 				new SceProcessParam(_ctx, varAddr).apply();
@@ -384,13 +389,11 @@ public class SceLibEntryTable {
 				
 			} else {
 				_ctx.api.createLabel(varAddr, String.format("NONAME_UnknownVariable_%08X", varNID), true, SourceType.ANALYSIS);
-				_ctx.api.setPlateComment(varAddr, makeVariablePlateComment(varNID, isTLS));
-				
 				_ctx.logger.appendMsg(String.format("Module exports unknown NONAME variable with NID 0x%08X.", varNID));
 			}
 		}
 	}
-	
+
 /*
  * Gadgets
  */
@@ -455,14 +458,15 @@ public class SceLibEntryTable {
 		}
 	}
 	
+	/**
+	 * 
+	 * @param funcNid Function's NID
+	 * @return Plate comment string
+	 * @note CANNOT BE CALLED IF NONAME LIBRARY
+	 */
 	private String makeFunctionPlateComment(long funcNid) {
 		String comment = "--- EXPORTED FUNCTION ---\n";
-		if (size == 0x20) {
-			comment += String.format("Library: %s (NID 0x%08X)\n", _libName, libraryNID);
-		} else {
-			comment += "Library: " + _libName + "\n";
-		}
-		
+		comment += String.format("Library: %s (NID 0x%08X)\n", _libName, libraryNID);
 		comment += String.format("Function NID: 0x%08X\n", funcNid);
 		if (isSyscallExportLibrary()) {
 			comment += "Syscall exported function\n";
@@ -472,14 +476,16 @@ public class SceLibEntryTable {
 		return comment;
 	}
 	
+	/**
+	 * 
+	 * @param varNid Variable's NID
+	 * @param isTLS Is variable a TLS variable?
+	 * @return Plate comment string
+	 * @note CANNOT BE CALLED IF NONAME LIBRARY
+	 */
 	private String makeVariablePlateComment(long varNid, boolean isTLS) {
 		String comment = "--- EXPORTED " + ((isTLS) ? "TLS " : "") + "VARIABLE ---\n";
-		if (size == 0x20) {
-			comment += String.format("Library: %s (NID 0x%08X)\n", _libName, libraryNID);
-		} else {
-			comment += "Library: " + _libName + "\n";
-		}
-		
+		comment += String.format("Library: %s (NID 0x%08X)\n", _libName, libraryNID);
 		comment += String.format("Variable NID: 0x%08X\n", varNid);
 		comment += String.format("--- %s_%08X ---", _libName, varNid);
 		

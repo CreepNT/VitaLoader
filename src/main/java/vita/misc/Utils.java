@@ -180,7 +180,15 @@ public class Utils {
 		monitor.setShowProgressValue(true);
 	}
 	
+	public static void setPlateComment(Address addr, String comment) {
+		utilsCtx.api.setPlateComment(addr, comment);
+	}
+	
 	public static ExternalLocation addExternalFunction(String libraryName, String extLabel) throws InvalidInputException, DuplicateNameException {
+		if (extLabel == null) {
+			throw new RuntimeException("NULL extLabel!");
+		}
+		
 		if (libraryName == null) { //Create in "EXTERNAL" pseudolibrary
 			return utilsCtx.program.getExternalManager().addExtFunction((Namespace)null, extLabel, null, SourceType.ANALYSIS);
 		}
