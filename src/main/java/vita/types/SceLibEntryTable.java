@@ -64,23 +64,24 @@ public class SceLibEntryTable {
 			0x79F8E492, "module_stop",
 			0x913482A9, "module_exit",
 			0x5C424D40, "module_bootstart",
-			0xE640E30C, "ModuleEntryType0",
-			0x4F0EE5BD, "ModuleEntryType1",
-			0xDF0212B9, "ModuleEntryType2",
-			0xDD42FA37, "module_entry_DD42FA37"
+			0xE640E30C, "module_proc_create",
+			0x4F0EE5BD, "module_proc_exit",
+			0xDF0212B9, "module_proc_kill",
+			0xDD42FA37, "module_suspend"
 	);
 	
-	private static final long MODULE_SDK_VERSION_NID 	= 0x936C8A78L; //SceUInt32
-	private static final long MODULE_INFO_NID 			= 0x6C2224BAL; //SceModuleInfo
+	private static final long MODULE_SDK_VERSION_NID 	= 0x936C8A78L; //SceUInt32 module_sdk_version
+	private static final long MODULE_INFO_NID 			= 0x6C2224BAL; //SceModuleInfo module_info
 	
-	private static final long PROCESS_PARAM_NID 		= 0x70FBA1E7L; //SceProcessParam
+	private static final long PROCESS_PARAM_NID 		= 0x70FBA1E7L; //SceProcessParam module_proc_param
 	
-	private static final long MODULE_DTRACE_PROBES_INFO_NID = 0x9318D9DDL;
-	private static final long MODULE_DTRACE_PROBES_NID = 0x8CE938B1L;
+	private static final long MODULE_DTRACE_PROBES_NID = 0x8CE938B1L; //sdt_probedesc_t module_dtrace_probes
+	private static final long MODULE_DTRACE_PROBES_INFO_NID = 0x9318D9DDL; //sdt_probes_info_t module_dtrace_probes_info
+	
 	
 	//SceModuleThreadParameter
-	private static final long MODULE_START_THREAD_PARAMETER_NID = 0x1A9822A4L;
-	private static final long MODULE_STOP_THREAD_PARAMETER_NID = 0xD20886EBL;
+	private static final long MODULE_START_THREAD_PARAMETER_NID = 0x1A9822A4L; //sce_module_start_thread_parameter
+	private static final long MODULE_STOP_THREAD_PARAMETER_NID = 0xD20886EBL;  //sce_module_stop_thread_parameter
 	/**
 	 * Creates an instance of the SceModuleExports structure object, and creates the structure in the listing at provided address
 	 * @param ctx ELF processing context
@@ -149,7 +150,7 @@ public class SceLibEntryTable {
 			_libName = "NONAME";
 			_libNamespace = Utils.getModuleNamespace();
 		}
-		
+
 		Utils.createDataInNamespace(_selfAddress, _libNamespace, STRUCTURE_NAME, this.toDataType());
 	}
 
@@ -324,7 +325,13 @@ public class SceLibEntryTable {
 
 	private void processVariable(long varNID, long rawVarAddress, boolean isTLS) throws Exception {
 		Address varAddr = Utils.getProgramAddress(rawVarAddress);
-		if (!isNONAMELibrary()) {
+		if (isNONAMELibrary()) {
+			if (isTLS) {
+				_ctx.logger.appendMsg(String.format("Skipped TLS NONAME variable with NID 0x%08X", varNID));
+			} else {
+				processNONAMEVariable(varNID, varAddr);
+			}
+		} else {
 			String defaultName = String.format("%s_%08X", _libName, varNID);
 			String dbName = _ctx.nidDb.getVariableName(_libName, libraryNID, rawVarAddress);
 			
@@ -352,48 +359,49 @@ public class SceLibEntryTable {
 				}
 				Utils.setPlateComment(varAddr, finalComment);
 			}
-		} else { //NONAME library
-			//TODO make this cleaner
-			if (varNID == MODULE_INFO_NID) { //Parsing of ELFs begins by finding and parsing the SceModuleInfo, so nothing to do
-				return;
-			} else if (varNID == MODULE_SDK_VERSION_NID) {
-				Utils.createDataInNamespace(varAddr, _libNamespace, "__crt0_main_sdk_version_var", TypeManager.getDataType("SceUInt32"));
-				Utils.setPlateComment(varAddr, "Version of the SDK this module was linked against");
-			} else if (varNID == PROCESS_PARAM_NID) {
-				
-				new SceProcessParam(_ctx, varAddr).apply();
-				
-			} else if (varNID == MODULE_DTRACE_PROBES_INFO_NID) {
-				
-				Utils.createDataInNamespace(varAddr, _libNamespace, "module_dtrace_probes_info", getProbesInfoDatatype());
-				
-				BinaryReader br = Utils.getMemoryReader(varAddr);
-				long piVersion = br.readNextUnsignedInt();
-				if (piVersion != 1L) {
-					_ctx.logger.appendMsg(String.format("WARNING: static probes info version mismatch! (%d != %d)", piVersion, 1));
-					return;
-				}
-				_numStaticProbes = (int)br.readNextUnsignedInt();
-				
-			} else if (varNID == MODULE_DTRACE_PROBES_NID) {
-				
-				_staticProbesAddr = varAddr;
-				
-			} else if (varNID == MODULE_START_THREAD_PARAMETER_NID) {
-				
-				new SceModuleThreadParameter(varAddr, ModuleThreadParameterType.MODULE_START_PARAMETER);
-				
-			} else if (varNID == MODULE_STOP_THREAD_PARAMETER_NID) {
-				
-				new SceModuleThreadParameter(varAddr, ModuleThreadParameterType.MODULE_STOP_PARAMETER);
-				
-			} else {
-				_ctx.api.createLabel(varAddr, String.format("NONAME_UnknownVariable_%08X", varNID), true, SourceType.ANALYSIS);
-				_ctx.logger.appendMsg(String.format("Module exports unknown NONAME variable with NID 0x%08X.", varNID));
-			}
 		}
 	}
 
+	private void processNONAMEVariable(long varNID, Address varAddr) throws Exception {
+		if (varNID == MODULE_INFO_NID) { //Parsing of ELFs begins by finding and parsing the SceModuleInfo, so nothing to do
+			return;
+		} else if (varNID == MODULE_SDK_VERSION_NID) {
+			Utils.createDataInNamespace(varAddr, _libNamespace, "module_sdk_version", TypeManager.getDataType("SceUInt32"));
+			Utils.setPlateComment(varAddr, "Version of the SDK module was built with");
+		} else if (varNID == PROCESS_PARAM_NID) {
+			
+			new SceProcessParam(_ctx, varAddr).apply();
+			
+		} else if (varNID == MODULE_DTRACE_PROBES_INFO_NID) {
+			
+			Utils.createDataInNamespace(varAddr, _libNamespace, "module_dtrace_probes_info", getProbesInfoDatatype());
+			
+			BinaryReader br = Utils.getMemoryReader(varAddr);
+			long piVersion = br.readNextUnsignedInt();
+			if (piVersion != 1L) {
+				_ctx.logger.appendMsg(String.format("WARNING: static probes info version mismatch! (%d != %d)", piVersion, 1));
+				return;
+			}
+			_numStaticProbes = (int)br.readNextUnsignedInt();
+			
+		} else if (varNID == MODULE_DTRACE_PROBES_NID) {
+			
+			_staticProbesAddr = varAddr;
+			
+		} else if (varNID == MODULE_START_THREAD_PARAMETER_NID) {
+			
+			new SceModuleThreadParameter(varAddr, ModuleThreadParameterType.MODULE_START_PARAMETER);
+			
+		} else if (varNID == MODULE_STOP_THREAD_PARAMETER_NID) {
+			
+			new SceModuleThreadParameter(varAddr, ModuleThreadParameterType.MODULE_STOP_PARAMETER);
+			
+		} else {
+			_ctx.api.createLabel(varAddr, String.format("NONAME_UnknownVariable_%08X", varNID), true, SourceType.ANALYSIS);
+			_ctx.logger.appendMsg(String.format("Module exports unknown NONAME variable with NID 0x%08X.", varNID));
+		}
+	}
+	
 /*
  * Gadgets
  */

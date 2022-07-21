@@ -41,7 +41,7 @@ public class SceModuleThreadParameter {
 		attr = reader.readNextUnsignedInt();
 		cpuAffinityMask = reader.readNextInt();
 		
-		Utils.createDataInNamespace(address, Utils.getModuleNamespace(), epName + "_thread_parameter", toDataType());
+		Utils.createDataInNamespace(address, Utils.getModuleNamespace(), "sce_" + epName + "_thread_parameter", toDataType());
 	}
 	
 	private static StructureDataType DATATYPE = null;	
