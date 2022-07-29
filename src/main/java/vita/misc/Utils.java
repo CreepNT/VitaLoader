@@ -88,22 +88,28 @@ public class Utils {
 		mb.getBytes(addr, buffer);
 	}
 	
-	public static Address getProgramAddress(long addr) {
+	public static Address getProgramAddressUnchecked(long location) {
 		final long imageBase = utilsCtx.helper.getElfHeader().getImageBase();
-	
-		MemoryBlock block = findBlockForAddress(addr);
-		if (block == null) { //Try with addr as "RVA"	
-			addr += imageBase;
-			block = findBlockForAddress(addr);
-		}
+		long vaddress = location;
 		
-		if (block == null) {
-			throw new RuntimeException(String.format("Can't find Address for addr=0x%08X", addr));
+		MemoryBlock block = findBlockForAddress(vaddress);
+		if (block == null) { //Try as a RVA instead of absolute vaddress
+			vaddress = imageBase + location;
+			if ((block = findBlockForAddress(vaddress)) == null) {
+				return null;
+			}
 		}
-		
 		
 		final long blockBase = block.getStart().getOffset();
-		return block.getStart().add(addr - blockBase);
+		return block.getStart().add(vaddress - blockBase);
+	}
+	
+	public static Address getProgramAddress(long location) {
+		Address addr = getProgramAddressUnchecked(location);
+		if (addr == null) {
+			throw new RuntimeException(String.format("Cannot obtain Address object for location 0x%08X", location));
+		}
+		 return addr;
 	}
 	
 	public static void registerDataType(DataType dt) {

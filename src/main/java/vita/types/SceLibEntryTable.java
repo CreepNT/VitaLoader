@@ -324,7 +324,14 @@ public class SceLibEntryTable {
 	}
 
 	private void processVariable(long varNID, long rawVarAddress, boolean isTLS) throws Exception {
-		Address varAddr = Utils.getProgramAddress(rawVarAddress);
+		Address varAddr = Utils.getProgramAddressUnchecked(rawVarAddress);
+		
+		//Certain modules like SceKernelPsp2Config export variables that point outside of the module.
+		//Attempting to markup those variables will result in catastrophic failures.
+		if (varAddr == null) {
+			return;
+		}
+		
 		if (isNONAMELibrary()) {
 			if (isTLS) {
 				_ctx.logger.appendMsg(String.format("Skipped TLS NONAME variable with NID 0x%08X", varNID));
