@@ -13,7 +13,6 @@ import ghidra.program.model.data.DataType;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.symbol.Namespace;
-import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.data.StructureDataType;
 import ghidra.program.model.data.TerminatedStringDataType;
 import ghidra.program.model.data.UnsignedIntegerDataType;
@@ -274,103 +273,93 @@ public class SceLibEntryTable {
 			return;
 		}
 		
-		final String defaultName = String.format("%s_%08X", _libName, functionNid);
-		String dbName = null;
+		String defaultName = String.format("%s_%08X", _libName, functionNid);
 		String funcComment = makeFunctionPlateComment(functionNid);
-		Address funcAddr = Utils.getProgramAddress(functionEntry & ~1L); //LSB is always clear for a function
+		String readableFuncName = null; //Human-readable (non-default) function name
+		Address funcAddr = Utils.getProgramAddress(functionEntry & ~1L); //Functions always start at a 2-byte aligned address
 		
 		if (!isNONAMELibrary()) {
-			dbName = _ctx.nidDb.getFunctionName(_libName, libraryNID, functionNid);
+			readableFuncName = _ctx.nidDb.getFunctionName(_libName, libraryNID, functionNid);
 		} else {
 			if (NAMELESS_FUNC_EXPORTS.containsKey((int)functionNid)) {
-				dbName = NAMELESS_FUNC_EXPORTS.get((int)functionNid);
+				//Overwrite defautName instead of using readableFuncName to avoid needed special code
+				//to not have the default name show up for NONAME exports.
+				defaultName = NAMELESS_FUNC_EXPORTS.get((int)functionNid);
 			}
 			else {
 				_ctx.logger.appendMsg(String.format("Module exports unknown NONAME function with NID 0x%08X.", functionNid));
 			}
 		}
 		
-		//See if function already exists
-		Function func = _ctx.api.getFunctionAt(funcAddr);
-		if (func != null) { //Already exists - append comment and add names as secondary labels, and markup TMode
-			func = Utils.createFunction(defaultName, functionEntry, false); //TMode + add default name label
-			if (dbName != null) {
-				_ctx.api.createLabel(funcAddr, dbName, false, SourceType.ANALYSIS);
-			}
-			
-			String previousComment = func.getComment();
-			if (previousComment != null) {
-				funcComment = previousComment + "\n\n" + funcComment;
-			}			
-		} else { //Function doesn't exist - create it
-			if (dbName == null) {
-				func = Utils.createFunction(defaultName, functionEntry, true);
-			} else {
-				//Use DB name as primary name, and default name as secondary label
-				func = Utils.createFunction(dbName, functionEntry, true);
-				
-				//Don't apply default name for NONAME functions
-				if (!isNONAMELibrary()) {
-					_ctx.api.createLabel(funcAddr, defaultName, false, SourceType.ANALYSIS);
-				}
-			}
+		final boolean functionExists = (_ctx.api.getFunctionAt(funcAddr) != null);
+		final boolean hasReadableName = (readableFuncName != null);
+
+		//Create the function if it didn't exist, markup TMode and add default name label otherwise.
+		//We can only use default names as primary if we are creating the function and there is no database name.
+		Function func = Utils.createEntrypointFunction(defaultName, functionEntry, (!hasReadableName && !functionExists));
+
+		String previousComment = func.getComment();
+		if (previousComment != null) {
+			funcComment = previousComment + "\n\n" + funcComment;
+		}
+		
+		if (hasReadableName) {
+			// When an unknown export aliases a known (i.e. with an entry in NID database) export, depending on the processing order,
+			// it is possible for the function export to have a default name as its primary export. If we don't create this label as primary,
+			// this ends up with the function's name (i.e. primary label) being a default name, even though the NID database has the function's name!
+			//
+			// Avoid this problem by always treating database names as primary labels. If two aliases have the same name in database, it seems that
+			// Ghidra silently eats the second label creation and only one remain, which is exactly what we want.
+			Utils.createEntrypointFunction(readableFuncName, functionEntry, true);
 		}
 		
 		if (!isNONAMELibrary()) { //Don't add comment to NONAME functions
 			func.setComment(funcComment);
 		}
 		
-		//It doesn't seem possible to sort functions based on library name (without using namespaces, which imo defeats the purpose), so leave as-is
+		//It doesn't seem possible to sort exported functions based on library name (without using namespaces, which defeats the purpose), so leave as-is
 	}
 
 	private void processVariable(long varNID, long rawVarAddress, boolean isTLS) throws Exception {
 		Address varAddr = Utils.getProgramAddressUnchecked(rawVarAddress);
-		
-		//Certain modules like SceKernelPsp2Config export variables that point outside of the module.
-		//Attempting to markup those variables will result in catastrophic failures.
 		if (varAddr == null) {
+			//Certain modules (e.g. SceKernelPsp2Config) export variables that point outside of the module.
+			//Attempting to markup those variables will result is irrelevant in catastrophic failures, so skip them.
 			return;
 		}
 		
 		if (isNONAMELibrary()) {
-			if (isTLS) {
-				_ctx.logger.appendMsg(String.format("Skipped TLS NONAME variable with NID 0x%08X", varNID));
+			if (!isTLS) {
+				processNONAMEVariable(varNID, varAddr);	
 			} else {
-				processNONAMEVariable(varNID, varAddr);
+				_ctx.logger.appendMsg(String.format("Skipped TLS NONAME variable with NID 0x%08X", varNID));
 			}
-		} else {
-			String defaultName = String.format("%s_%08X", _libName, varNID);
-			String dbName = _ctx.nidDb.getVariableName(_libName, libraryNID, rawVarAddress);
-			
-			if (_ctx.api.getSymbolAt(varAddr) == null) { //No symbol exists - create new
-				if (dbName != null) { //Use database name as primary label, then default as secondary
-					_ctx.api.createLabel(varAddr, dbName, true, SourceType.ANALYSIS);
-					_ctx.api.createLabel(varAddr, defaultName, false, SourceType.ANALYSIS);
-				} else {
-					_ctx.api.createLabel(varAddr, defaultName, true, SourceType.ANALYSIS);
-				}
-				Utils.setPlateComment(varAddr, makeVariablePlateComment(varNID, isTLS));
-				
-			} else { //Symbol exists - append new labels
-				if (dbName != null) { //Use database name as primary label, then default as secondary
-					_ctx.api.createLabel(varAddr, dbName, true, SourceType.ANALYSIS);
-					_ctx.api.createLabel(varAddr, defaultName, false, SourceType.ANALYSIS);
-				} else {
-					_ctx.api.createLabel(varAddr, defaultName, true, SourceType.ANALYSIS);
-				}
-				String finalComment = _ctx.api.getPlateComment(varAddr);
-				if (finalComment != null) {
-					finalComment += "\n\n" + makeVariablePlateComment(varNID, isTLS);
-				} else {
-					finalComment = makeVariablePlateComment(varNID, isTLS);
-				}
-				Utils.setPlateComment(varAddr, finalComment);
-			}
+			return;
 		}
+		
+		final String defaultName = String.format("%s_%08X", _libName, varNID);
+		String dbName = _ctx.nidDb.getVariableName(_libName, libraryNID, rawVarAddress);
+		       
+		final boolean isNewSymbol = (Utils.getSymbolAt(varAddr) == null);
+		       
+		Utils.createLabel(varAddr, defaultName, isNewSymbol);
+		if (dbName != null) {
+			//Like for functions, always set a database name as primary to avoid default name being primary in case of aliases.
+			Utils.createLabel(varAddr, dbName, true);
+		}      
+
+		String variableComment = makeVariablePlateComment(varNID, isTLS);
+		if (!isNewSymbol) {
+			String oldComment = Utils.getPlateCommentAt(varAddr);
+			if (oldComment != null) {
+			 variableComment = oldComment + "\n\n" + variableComment;
+			}  
+		}      
+		Utils.setPlateComment(varAddr, variableComment);
 	}
 
 	private void processNONAMEVariable(long varNID, Address varAddr) throws Exception {
-		if (varNID == MODULE_INFO_NID) { //Parsing of ELFs begins by finding and parsing the SceModuleInfo, so nothing to do
+		if (varNID == MODULE_INFO_NID) { //Parsing of ELFs begins by finding and parsing the SceModuleInfo - nothing to do
 			return;
 		} else if (varNID == MODULE_SDK_VERSION_NID) {
 			Utils.createDataInNamespace(varAddr, _libNamespace, "module_sdk_version", TypeManager.getDataType("SceUInt32"));
@@ -404,7 +393,7 @@ public class SceLibEntryTable {
 			new SceModuleThreadParameter(varAddr, ModuleThreadParameterType.MODULE_STOP_PARAMETER);
 			
 		} else {
-			_ctx.api.createLabel(varAddr, String.format("NONAME_UnknownVariable_%08X", varNID), true, SourceType.ANALYSIS);
+			Utils.createLabel(varAddr, String.format("NONAME_UnknownVariable_%08X", varNID), true);
 			_ctx.logger.appendMsg(String.format("Module exports unknown NONAME variable with NID 0x%08X.", varNID));
 		}
 	}

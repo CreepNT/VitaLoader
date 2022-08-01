@@ -103,7 +103,7 @@ public class sdt_probedesc_t {
 		Utils.createDataInNamespace(tableAddress, Utils.getModuleNamespace(), sdpd_provider + sdpd_name + "_probe_descriptor", toDataType());
 		
 		if (sdpd_offset != 0L) {
-			Function func =  Utils.createFunction(sdpd_provider + sdpd_name + "_instrumentation_point", sdpd_offset, false);
+			Function func =  Utils.createFunction(sdpd_provider + sdpd_name + "_instrumentation_point", sdpd_offset);
 			String comment = "Static DTrace probe\n";
 			comment += "Provider name: " + sdpd_provider + "\n";
 			comment += "Probe name: " + sdpd_name + "\n";
@@ -120,7 +120,7 @@ public class sdt_probedesc_t {
 
 	private void markupHelper(long addr, String name) throws Exception {
 		if (addr != 0) {
-			Function func =  Utils.createFunction(sdpd_provider + sdpd_name + "_" + name + "_fn", addr, false);
+			Function func =  Utils.createFunction(sdpd_provider + sdpd_name + "_" + name + "_fn", addr);
 			String comment = "Static DTrace probe\n";
 			comment += "Provider name: " + sdpd_provider + "\n";
 			comment += "Probe name: " + sdpd_name + "\n";

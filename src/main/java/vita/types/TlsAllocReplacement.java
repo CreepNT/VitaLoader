@@ -128,7 +128,7 @@ public class TlsAllocReplacement {
 			return;
 		
 		ParameterDefinition[] fArgs = funcType.getArguments();
-		Function f = Utils.createFunction(name, address, false);
+		Function f = Utils.createFunction(name, address);
 		f.setReturnType(funcType.getReturnType(), SourceType.ANALYSIS);
 		if (fArgs.length > 0) {
 			Variable[] vars = new Variable[fArgs.length];

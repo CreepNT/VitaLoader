@@ -18,6 +18,7 @@ import ghidra.program.model.mem.MemoryBlock;
 import ghidra.program.model.symbol.ExternalLocation;
 import ghidra.program.model.symbol.Namespace;
 import ghidra.program.model.symbol.SourceType;
+import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.util.CodeUnitInsertionException;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
@@ -158,6 +159,18 @@ public class Utils {
 		createDataInNamespace(address, getNamespaceFromName(namespaceName), name, type);
 	}
 	
+	public static Symbol createLabel(Address address, String label, boolean isPrimary) throws Exception {
+		return utilsCtx.api.createLabel(address, label, isPrimary, SourceType.ANALYSIS);
+	}
+	
+	public static Symbol getSymbolAt(Address address) {
+		return utilsCtx.api.getSymbolAt(address);
+	}
+	
+	public static String getPlateCommentAt(Address address) {
+		return utilsCtx.api.getPlateComment(address);
+	}
+	
 	public static void appendLogMsg(String message) {
 		utilsCtx.logger.appendMsg(message);
 	}
@@ -201,6 +214,37 @@ public class Utils {
 		return utilsCtx.program.getExternalManager().addExtFunction(libraryName, extLabel, null, SourceType.ANALYSIS);
 	}
 	
+	//TODO make public?
+	private static Function _createFunction(String name, long rawAddress, boolean makeFallbackLabelPrimary, boolean makeFunctionEntrypoint) throws Exception {
+		boolean isThumb = (rawAddress & 1L) != 0;
+		rawAddress &= ~1L; //Clear Thumb bit	
+		
+		Address funcEntry = Utils.getProgramAddress(rawAddress);
+		Function func = utilsCtx.api.getFunctionAt(funcEntry);
+		if (func != null) { //Already exists - just markup TMode, add secondary label and return the function
+			utilsCtx.api.createLabel(funcEntry, name, makeFallbackLabelPrimary, SourceType.ANALYSIS);
+		} else {
+			func = utilsCtx.helper.createOneByteFunction(name, funcEntry, makeFunctionEntrypoint);
+			func.setSignatureSource(SourceType.ANALYSIS);
+		}
+		markupTMode(funcEntry, isThumb);
+		return func;
+	}
+	
+	/**
+	 * Creates an entrypoint function at a given address if it doesn't exist, else returns the existing function.
+	 * If the function already exists, the name is added as a primary/secondary label instead, and isEntrypoint is ignored.
+	 * TMode is always marked up based on the provided address.
+	 * @param name  Name of the function
+	 * @param address  Address of the function
+	 * @param isPrimary Should the label be primary if funciton already exists?
+	 * @return The created/existing function
+	 * @throws Exception 
+	 */
+	public static Function createEntrypointFunction(String name, long address, boolean isPrimary) throws Exception {
+		return _createFunction(name, address, isPrimary, true);
+	}
+	
 	/**
 	 * Creates a function at a given address if it doesn't exist, else returns the existing function.
 	 * If the function already exists, the name is added as a secondary label instead, and isEntrypoint is ignored.
@@ -211,22 +255,8 @@ public class Utils {
 	 * @return The created/existing function
 	 * @throws Exception 
 	 */
-	public static Function createFunction(String name, long address, boolean isEntrypoint) throws Exception {
-		boolean isThumb = (address & 1L) != 0;
-		address = (address & ~1L); //Clear Thumb bit	
-		
-		Address funcEntry = Utils.getProgramAddress(address);
-		Function func = utilsCtx.api.getFunctionAt(funcEntry);
-		if (func != null) { //Already exists - just markup TMode, add secondary label and return the function
-			utilsCtx.api.createLabel(funcEntry, name, false, SourceType.ANALYSIS);
-			markupTMode(funcEntry, isThumb);
-			return func;
-		}
-		
-		func = utilsCtx.helper.createOneByteFunction(name, funcEntry, isEntrypoint);
-		func.setSignatureSource(SourceType.ANALYSIS);
-		markupTMode(funcEntry, isThumb);
-		return func;
+	public static Function createFunction(String name, long address) throws Exception {
+		return _createFunction(name, address, false, false);
 	}
 	
 	public static void markupTMode(long address) throws ContextChangeException, AddressOutOfBoundsException {

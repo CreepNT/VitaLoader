@@ -130,7 +130,7 @@ public class GenericModuleImports {
 					funcName = String.format("%s_%08X", LibraryName, funcNid);
 				}
 
-				Function func = Utils.createFunction(funcName, funcAddr, false);
+				Function func = Utils.createFunction(funcName, funcAddr);
 				
 				//Use the file names instead of library names to allow linking and allow
 				//usage of LibraryName as namespace for data (i.e. SceLibStubTable)
