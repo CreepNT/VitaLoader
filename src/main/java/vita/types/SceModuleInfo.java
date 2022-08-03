@@ -1,6 +1,7 @@
 package vita.types;
 
 import ghidra.app.util.bin.BinaryReader;
+import ghidra.program.model.data.ArrayDataType;
 import ghidra.program.model.data.CharDataType;
 import ghidra.program.model.data.DataType;
 import ghidra.program.model.data.EnumDataType;
@@ -26,7 +27,7 @@ public class SceModuleInfo {
 	public long start_entry = 0;
 	public long stop_entry = 0;
 	
-	public long tls_top= 0;
+	public long tls_top = 0;
 	public long tls_filesz = 0;
 	public long tls_memsz = 0;
 
@@ -137,7 +138,7 @@ public class SceModuleInfo {
 			attr.add("SCE_MODULE_ATTR_CAN_RESTART",     0x0008, "?Module can be restarted after being stopped?");
 			attr.add("SCE_MODULE_ATTR_CAN_RELOCATE",    0x0010, "?Module can be relocated?");
 			attr.add("SCE_MODULE_ATTR_CANT_SHARE",      0x0020, "?Module cannot be shared?");
-			attr.add("SCE_MODULE_ATTR_DEBUG", 			0x0800, "Debug");
+			attr.add("SCE_MODULE_ATTR_DEBUG?", 			0x0800, "?Debug?");
 			MODULE_ATTRIBUTES = attr;
 		}
 		
@@ -186,11 +187,7 @@ public class SceModuleInfo {
 				STRUCTURE.add(IBO32, "extab_start", "ARM EABI exception table top");
 				STRUCTURE.add(IBO32, "extab_end", "ARM EABI exception table bottom");
 			}
-			
-			//Utils.registerDataType(STRUCTURE);
 		}
-		
-		//Utils.registerDataType(STRUCTURE);
 		
 		return STRUCTURE;
 	}
@@ -244,7 +241,22 @@ public class SceModuleInfo {
 		
 		if (!importsStart.equals(importsEnd)) {
 			throw new RuntimeException("Mismatched imports parsing - ended at " + importsStart.toString() + " instead of expected " + importsEnd.toString());
-		}	
+		}
+		
+		//Markup exidx/extab/TLS locations
+		//TODO: parse exidx/extab tables
+		if (exidx_top < exidx_btm /* Initialized to 0 and equal if they're read but not present */) {
+			final int size = (int)(exidx_btm - exidx_top);
+			Utils.createDataInNamespace(Utils.getProgramAddress(exidx_top), Utils.getModuleNamespace(), "exidx_table", new ArrayDataType(TypeManager.u8, size, 1));
+		}
+		
+		if (extab_top < extab_btm /* Initialized to 0 and equal if they're read but not present */) {
+			final int size = (int)(extab_btm - extab_top);
+			Utils.createDataInNamespace(Utils.getProgramAddress(extab_top), Utils.getModuleNamespace(), "extab_table", new ArrayDataType(TypeManager.u8, size, 1));
+		}
+		
+		if (tls_top != 0L /* 0 if not present */) {
+			Utils.createDataInNamespace(Utils.getProgramAddress(exidx_top), Utils.getModuleNamespace(), "tls_segment", new ArrayDataType(TypeManager.u8, (int)tls_filesz, 1));
+		}
 	}
-
 }
