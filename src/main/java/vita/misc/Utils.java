@@ -46,7 +46,7 @@ public class Utils {
 			throw new RuntimeException("NO MODULE NAME!!!!");
 		}
 		
-		return getNamespaceFromName(utilsCtx.moduleName + "_module");
+		return getNamespaceFromName("##" + utilsCtx.moduleName);
 	}
 	
 	
