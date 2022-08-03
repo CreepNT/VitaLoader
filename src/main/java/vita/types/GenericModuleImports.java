@@ -42,7 +42,7 @@ public class GenericModuleImports {
 	public GenericModuleImports(ProcessingContext ctx, SceLibStubTable_0x2C imports) {
 		_ctx = ctx;
 		LibraryName = imports._LibraryName;
-		LibraryNID = -1L;
+		LibraryNID = imports.library_nid;
 		
 		NumFunctions = imports.numFunctions;
 		FuncNIDTable = imports.pFuncNidTbl;

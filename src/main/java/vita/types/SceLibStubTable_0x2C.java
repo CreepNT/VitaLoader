@@ -33,7 +33,10 @@ public class SceLibStubTable_0x2C {
 	public long pTlsNidTbl;
 	public long pTlsEntryTbl;
 	
+	public long library_nid;
+	
 	public final String _LibraryName; //Retrieved library name
+	public final long _sce_package_version;
 	
 	public SceLibStubTable_0x2C(Address moduleImportsAddr) 
 			throws Exception {
@@ -60,15 +63,23 @@ public class SceLibStubTable_0x2C {
 		pTlsNidTbl = reader.readNextUnsignedInt();
 		pTlsEntryTbl = reader.readNextUnsignedInt();
 		
-		if (pLibName != 0L) {
-			Address libNameAddr = Utils.getProgramAddress(pLibName);
-			BinaryReader libNameReader = Utils.getMemoryReader(libNameAddr);
-			_LibraryName = libNameReader.readNextAsciiString();
-			Utils.createDataInNamespace(libNameAddr, _LibraryName, "_" + _LibraryName + "_stub_str", new TerminatedStringDataType());
-		} else {
+		if (pLibName == 0L) {
 			throw new RuntimeException("SceLibStubTable at address " + moduleImportsAddr.toString() + " doesn't have a library name!");
 		}
 		
+		Address libNidAddr = Utils.getProgramAddressUnchecked(pLibName - 8);
+		if (libNidAddr == null) { //should never happen
+			throw new RuntimeException(String.format("SceLibStubTable at address " + moduleImportsAddr.toString() + " has unexpected name pointer 0x%08X!", pLibName - 8));
+		}
+		
+		BinaryReader libraryMetadataReader = Utils.getMemoryReader(libNidAddr);
+		library_nid = libraryMetadataReader.readNextUnsignedInt();
+		_sce_package_version = libraryMetadataReader.readNextUnsignedInt();
+		_LibraryName = libraryMetadataReader.readNextAsciiString();
+		
+		Utils.createDataInNamespace(libNidAddr, _LibraryName, "_" + _LibraryName + "_nid", TypeManager.u32);
+		Utils.createDataInNamespace(libNidAddr.add(4), _LibraryName, "_sce_package_version_" + _LibraryName, TypeManager.u32);
+		Utils.createDataInNamespace(libNidAddr.add(8), _LibraryName, "_" + _LibraryName + "_stub_str", new TerminatedStringDataType());
 		Utils.createDataInNamespace(moduleImportsAddr, _LibraryName, STRUCTURE_NAME, toDataType());
 	}
 
