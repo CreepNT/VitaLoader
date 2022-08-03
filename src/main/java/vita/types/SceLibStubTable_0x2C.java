@@ -77,8 +77,17 @@ public class SceLibStubTable_0x2C {
 		_sce_package_version = libraryMetadataReader.readNextUnsignedInt();
 		_LibraryName = libraryMetadataReader.readNextAsciiString();
 		
-		Utils.createDataInNamespace(libNidAddr, _LibraryName, "_" + _LibraryName + "_nid", TypeManager.u32);
-		Utils.createDataInNamespace(libNidAddr.add(4), _LibraryName, "_sce_package_version_" + _LibraryName, TypeManager.u32);
+		//Sony changed the meaning of pLibName between 0.902 and 0.931 because why the fuck not
+		//This should be a good enough heuristic, at worse this can be removed entirely.
+		if (_sce_package_version == 0L) {
+			Utils.createDataInNamespace(libNidAddr, _LibraryName, "_" + _LibraryName + "_nid", TypeManager.u32);
+			Utils.createDataInNamespace(libNidAddr.add(4), _LibraryName, "_sce_package_version_" + _LibraryName, TypeManager.u32);
+		} else {
+			//On 0.931 there's no library NID, what we read is garbage
+			//Fallback to "no NID" case
+			library_nid = -1L;
+		}
+		
 		Utils.createDataInNamespace(libNidAddr.add(8), _LibraryName, "_" + _LibraryName + "_stub_str", new TerminatedStringDataType());
 		Utils.createDataInNamespace(moduleImportsAddr, _LibraryName, STRUCTURE_NAME, toDataType());
 	}
