@@ -43,6 +43,7 @@ public class SceLibEntryTable {
 	//On 0.931, library NID is 8 bytes before the library name.
 	public long pNidTbl;
 	public long pEntryTbl;
+	public long _sce_package_version;
 
 	private final ProcessingContext _ctx; 	//Processing context
 	private final Address _selfAddress; 	//Address this structure is located at
@@ -112,11 +113,7 @@ public class SceLibEntryTable {
 			pLibName = reader.readNextUnsignedInt();
 		} else if (size == 0x1C) {
 			pLibName = reader.readNextUnsignedInt();
-			if (pLibName != 0L) {
-				Address pLibNID = Utils.getProgramAddress(pLibName - 8);
-				BinaryReader NIDReader = Utils.getMemoryReader(pLibNID);
-				libraryNID = NIDReader.readNextUnsignedInt();
-			} else {
+			if (pLibName == 0L) {
 				libraryNID = 0L; //NONAME library
 			}
 		} else {
@@ -130,17 +127,29 @@ public class SceLibEntryTable {
 		
 		//Parse library name if present
 		if (this.pLibName != 0L) {
-			Address libNameAddress = Utils.getProgramAddress(this.pLibName);
-			BinaryReader libNameReader = Utils.getMemoryReader(libNameAddress);
-			_libName = libNameReader.readNextAsciiString();
-			_libNamespace = Utils.getNamespaceFromName(_libName);
-			
-			Utils.createDataInNamespace(libNameAddress, _libNamespace, "_" + _libName + "_str", new TerminatedStringDataType());
+			if (size == 0x1C) {
+				Address libMetadataReader = Utils.getProgramAddress(pLibName - 8);
+				BinaryReader metadataReader = Utils.getMemoryReader(libMetadataReader);
+				libraryNID = metadataReader.readNextUnsignedInt();
+				_sce_package_version = metadataReader.readNextUnsignedInt();
+				_libName = metadataReader.readNextAsciiString();
+				_libNamespace = Utils.getNamespaceFromName(_libName);
+				
+				Utils.createDataInNamespace(libMetadataReader, _libNamespace, "_" + _libName + "_nid", TypeManager.u32);
+				Utils.createDataInNamespace(libMetadataReader.add(4), _libNamespace, "_sce_package_version_" + _libName, TypeManager.u32);
+				Utils.createDataInNamespace(libMetadataReader.add(8), _libNamespace, "_" + _libName + "_stub_str", new TerminatedStringDataType());
+			} else {
+				Address libNameAddress = Utils.getProgramAddress(this.pLibName);
+				BinaryReader libNameReader = Utils.getMemoryReader(libNameAddress);
+				_libName = libNameReader.readNextAsciiString();
+				_libNamespace = Utils.getNamespaceFromName(_libName);
+				
+				Utils.createDataInNamespace(libNameAddress, _libNamespace, "_" + _libName + "_str", new TerminatedStringDataType());
+			}
 			
 			if (isNONAMELibrary()) {
 				Utils.appendLogMsg(String.format("WARNING: NONAME library has a name! (name=%s)", _libName));
 			}
-			_libNamespace = Utils.getNamespaceFromName(_libName);
 		} else if (!isNONAMELibrary()) {
 			Utils.appendLogMsg(String.format("WARNING: Unnamed library found (NID = 0x%08X)", libraryNID));
 			_libName = String.format("UNNAMED_%08X", libraryNID);
