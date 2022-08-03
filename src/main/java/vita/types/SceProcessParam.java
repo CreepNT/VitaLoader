@@ -52,15 +52,19 @@ public class SceProcessParam {
 		sceUserMainThreadAttribute = reader.readNextUnsignedInt();
 		sceProcessName = reader.readNextUnsignedInt();
 		sceKernelPreloadModuleInhibit = reader.readNextUnsignedInt();
-		sceUserMainThreadCpuAffinityMask = reader.readNextUnsignedInt();
 		
 		
 		//We're gonna cheat a bit - since we now read the SDK version
-		//set it directly to ensure that the following check is precise
+		//set it directly to ensure that the following checks are more precise
 		Utils.setModuleSDKVersion(sdkVersion);
+		Utils.setProgramInformation("Module SDK Version", String.format("%X.%03X.%03X", (sdkVersion >> 24) & 0xFF, (sdkVersion >> 12) & 0xFFF, sdkVersion & 0xFFF));
 		
-		if (size < 0x2C || size > 0x34) {
+		if (size < 0x28 || size > 0x34) {
 			throw new RuntimeException("Unsupported SceProcessParam size " + size);
+		}
+		
+		if (size >= 0x2C) {
+			sceUserMainThreadCpuAffinityMask = reader.readNextUnsignedInt();
 		}
 		
 		if (size >= 0x30) {
@@ -86,7 +90,10 @@ public class SceProcessParam {
 		dt.add(new PointerDataType(SceUInt32), "pUserMainThreadAttribute", "Pointer to main thread attributes");
 		dt.add(new PointerDataType(CharDataType.dataType), "pProcessName", "Pointer to process name");
 		dt.add(new PointerDataType(SceUInt32), "pKernelPreloadModuleInhibit", "Pointer to module preload inibition variable");
-		dt.add(new PointerDataType(SceUInt32), "pUserMainThreadCpuAffinityMask", "Pointer to main thread CPU affinity mask");
+		
+		if (size >= 0x2C) {
+			dt.add(new PointerDataType(SceUInt32), "pUserMainThreadCpuAffinityMask", "Pointer to main thread CPU affinity mask");
+		}
 		
 		if (size >= 0x30) {
 			dt.add(Pointer32DataType.dataType, "pLibcParam", "Pointer to SceLibc parameters");

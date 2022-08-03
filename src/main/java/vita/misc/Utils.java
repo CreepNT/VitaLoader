@@ -4,6 +4,7 @@ import java.math.BigInteger;
 
 import ghidra.app.util.bin.BinaryReader;
 import ghidra.app.util.bin.MemoryByteProvider;
+import ghidra.framework.options.Options;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressOutOfBoundsException;
 import ghidra.program.model.data.ArrayDataType;
@@ -13,6 +14,7 @@ import ghidra.program.model.lang.Register;
 import ghidra.program.model.lang.RegisterValue;
 import ghidra.program.model.listing.ContextChangeException;
 import ghidra.program.model.listing.Function;
+import ghidra.program.model.listing.Program;
 import ghidra.program.model.mem.MemoryAccessException;
 import ghidra.program.model.mem.MemoryBlock;
 import ghidra.program.model.symbol.ExternalLocation;
@@ -257,6 +259,11 @@ public class Utils {
 	 */
 	public static Function createFunction(String name, long address) throws Exception {
 		return _createFunction(name, address, false, false);
+	}
+	
+	public static void setProgramInformation(String name, String value) {
+		Options programInfos = utilsCtx.program.getOptions(Program.PROGRAM_INFO);
+		programInfos.setString(name, value);
 	}
 	
 	public static void markupTMode(long address) throws ContextChangeException, AddressOutOfBoundsException {
