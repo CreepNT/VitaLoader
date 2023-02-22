@@ -1,6 +1,12 @@
 # VitaLoader
 PS Vita ELF loader for Ghidra
 
+**VitaLoader does not work on Ghidra version 10.2 and later due to changes inside Ghidra's codebase.**
+Support for those versions will never be added, as development has been shifted to VitaLoader Redux.
+
+If you need to use VitaLoader but want to use modern Ghidra versions,
+please install a supported version of Ghidra, import the ELFs using it, then `Upgrade` the programs.
+
 ## Features
 VitaLoader can be used in place of the Ghidra ELF loader to load SCE-specific ELFs for PSVita. **Attempting to load non-Vita ELFs will not work properly and is not supported - use the regular ELF loader instead.**
  * Supports all SCE ELF types (`ET_SCE_EXEC`, `ET_SCE_RELEXEC`, `ET_SCE_PSP2RELEXEC`) and generic ELF types (`ET_REL`/`ET_EXEC`/`ET_CORE`) *that follow the SCE format*
@@ -37,7 +43,12 @@ Please report any error you encounter in the [Issues Tracker](https://github.com
 
 **Make sure you are importing a Vita ELF. Non-Vita ELFs are NOT supported and such bug reports will be rejected.**
 
+## Known bugs
+* Import thunks may not be marked up (cause unknown)
+* VitaSDK moduled with no export cannot be imported ("malformed" SceModuleInfo improperly parsed)
+
 ## Future plans
+These features may be implemented into VitaLoader Redux.
 * Add an Analysis option to re-parse all structures
  * This would allow using an updated NID database without needing to reimport the file
 * Parse the `exidx`/`extab` sections (would that even be useful?)
