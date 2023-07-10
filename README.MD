@@ -1,11 +1,8 @@
 # VitaLoader
 PS Vita ELF loader for Ghidra
 
-**VitaLoader does not work on Ghidra version 10.2 and later due to changes inside Ghidra's codebase.**
-Support for those versions will never be added, as development has been shifted to VitaLoader Redux.
-
-If you need to use VitaLoader but want to use modern Ghidra versions,
-please install a supported version of Ghidra, import the ELFs using it, then `Upgrade` the programs.
+**VitaLoader has been deprecated as it does not work on Ghidra version 10.2 or higher due to changes inside the Ghidra codebase.**
+Please consider using [VitaLoader Redux](https://github.com/CreepNT/VitaLoaderRedux) instead, as this repository is no longer maintained.
 
 ## Features
 VitaLoader can be used in place of the Ghidra ELF loader to load SCE-specific ELFs for PSVita. **Attempting to load non-Vita ELFs will not work properly and is not supported - use the regular ELF loader instead.**
@@ -24,10 +21,6 @@ Download the [latest release](https://github.com/CreepNT/VitaLoader/releases) fo
 Open Ghidra, select `File` > `Install Extensions...`, click on the green `+` and select the `.zip` you just downloaded.
 Ghidra should ask you to restart in order for changes to take effect, do so.
 
-## Updating
-Download the [latest release](https://github.com/CreepNT/VitaLoader/releases) for the Ghidra version you use.
-Open Ghidra, select `File` > `Install Extensions...` and untick the checkbox next to `VitaLoader`. Restart Ghidra, then proceed like for the first installation.
-
 ## Building
 You will need to [install  Gradle](https://gradle.org/install/) in order to be able to build the extension.
 
@@ -36,24 +29,10 @@ Make sure to pass `-PGHIDRA_INSTALL_DIR=<your Ghidra install>` if the environeme
 
 It seems building the extension for Ghidra 9.xx releases is no longer possible. Assistance in getting the project to build will only be provided for the latest Ghidra version.
 
-## Bug reports
-Please report any error you encounter in the [Issues Tracker](https://github.com/CreepNT/VitaLoader/issues).
-
-**Make sure to update to the latest version if you encounter a bug before reporting it. Bug reports for old versions will be rejected.**
-
-**Make sure you are importing a Vita ELF. Non-Vita ELFs are NOT supported and such bug reports will be rejected.**
-
 ## Known bugs
 * Import thunks may not be marked up (cause unknown)
 * VitaSDK moduled with no export cannot be imported ("malformed" SceModuleInfo improperly parsed)
-
-## Future plans
-These features may be implemented into VitaLoader Redux.
-* Add an Analysis option to re-parse all structures
- * This would allow using an updated NID database without needing to reimport the file
-* Parse the `exidx`/`extab` sections (would that even be useful?)
-* Add internal database support
-* Add support for a type database file
+* VitaLoader will not work if GhidraOrbis is installed
 
 # Credits
 * astrelsky and all contributors - [GhidraOrbis](https://github.com/astrelsky/GhidraOrbis)
